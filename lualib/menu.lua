@@ -193,7 +193,7 @@ function _M.setup(expressions)
         end)
     end
 
-    if _M.has_boop and boop.config.trigger_mode == "lidar" then
+    if _M.has_boop and boop.mode == "apds9960" then
         _M.settings.addElement(function() return "Calibrate boop" end,  function()
             if boop.onEnter() then 
                 _M.has_boop = false
@@ -229,7 +229,7 @@ function _M.setup(expressions)
 
     _M.settings.addElement(function() return "Reset default" end,  function()
         dictFormat()
-        _M.has_boop = false
+        _M.has_boop = true
         _M.face_selection_style = "GRID"
         _M.inverted_left_right = false
         _M.brigthness = 64
@@ -240,7 +240,7 @@ function _M.setup(expressions)
         dictSet("inverted_left_right", "0") 
         dictSet("has_fft_overlay", "0")
         dictSet("enable_overlays", "1")
-        dictSet("has_boop", "0")
+        dictSet("has_boop", "1")
         fft.ResetDefaults()
         dictSave()
         _M.reapplyButtons()
@@ -329,8 +329,7 @@ function _M.buildSystemInfoLines()
     table.insert(lines, "Reset: "..(RESET_REASONS[getResetReason()] or "UNKNOWN"))
 
     table.insert(lines, "== DEVICES ==")
-    table.insert(lines, "Servo: "..(hasServo() and "YES" or "NO"))
-    table.insert(lines, "Lidar: "..(hasLidar() and "YES" or "NO"))
+    table.insert(lines, "Boop sensor: "..(apdsIsStarted() and "OK" or "NO"))
     table.insert(lines, "Int.Button: "..(getInternalButtonStatus() == 1 and "PRESSED" or "RELEASED"))
 
     table.insert(lines, "== INPUT ==")

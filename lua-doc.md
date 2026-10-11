@@ -2,8 +2,7 @@
 
 1. [Lua Functions](#lua-functions)
 2. [Lua Constants](#lua-constants)
-3. [LED Behaviors](#led-behaviors)
-4. [Bluetooth Interface](#bluetooth-interface)
+3. [Bluetooth Interface](#bluetooth-interface)
 
 # Lua functions
 
@@ -12,13 +11,11 @@
 - [Sensors](#sensors)
 - [Led panel Drawing](#led-panel-drawing)
 - [Dictionary Functions](#dictionary-functions)
-- [Servo Control](#servo-control)
 - [Image Decoding](#image-decoding)
 - [Internal Screen](#internal-screen)
-- [LED Strips](#led-strips-1)
+- [LED Strips](#led-strips)
 - [FFT / Audio Analysis](#fft--audio-analysis)
 - [Arduino Core](#arduino-core)
-- [IR Remote](#ir-remote)
 - [2D Models](#2d-models)
 - [Sprites](#sprites)
 - [Keyframe Animations](#keyframe-animations)
@@ -221,13 +218,22 @@ Returns the raw value of the remote control's gyroscope sensor, Z axis only.
   - `device` (int, optional): The ID of the remote control device. Default is `0`.
 - **Returns**: `int`
 
-#### `hasLidar()`
-Checks for the presence of a lidar sensor.
-- **Returns**: `bool` (`true` if a lidar is present, otherwise `false`)
+#### `apdsBegin(threshold, [intPin])`
+Starts the APDS-9960 proximity sensor used for boops. `threshold` is 1-255 (higher means the hand must be closer). `intPin` is the GPIO wired to the sensor's INT pin, or `-1` to poll over I2C.
+- **Returns**: `bool`
 
-#### `readLidar()`
-Returns the distance in mm from the lidar.
-- **Returns**: `int` (The distance in millimeters).
+#### `apdsIsStarted()`
+- **Returns**: `bool`
+
+#### `apdsReadProximity()`
+- **Returns**: `int` (0-255, higher is closer)
+
+#### `apdsSetThreshold(threshold)` / `apdsGetThreshold()`
+Changes or reads the boop threshold.
+
+#### `apdsIsTriggered()`
+True while something is closer than the threshold. Uses the INT pin when wired, so it only talks to the sensor while something is near.
+- **Returns**: `bool`
 
 #### `getInternalButtonStatus()`
 Returns the status of the internal button.
@@ -540,35 +546,6 @@ Loads the dictionary from persistent storage.
 Formats/clears the dictionary storage.
 - **Returns**: `nil`
 
-## Servo Control
-
-[↑ Back to top](#topics)
-
-> **⚠️ Requires `USE_SERVO`**: `servoPause()`, `servoResume()`, and `servoMove()` are only registered when the firmware is compiled with servo support. `hasServo()` is always available.
-
-#### `servoPause(servoId)`
-Pauses the specified servo.
-- **Parameters**:
-  - `servoId` (int): The ID of the servo to pause.
-- **Returns**: `bool`
-
-#### `servoResume(servoId)`
-Resumes the specified servo.
-- **Parameters**:
-  - `servoId` (int): The ID of the servo to resume.
-- **Returns**: `bool`
-
-#### `servoMove(servoId, angle)`
-Moves the specified servo to the given angle.
-- **Parameters**:
-  - `servoId` (int): The ID of the servo to move.
-  - `angle` (float): The target angle for the servo.
-- **Returns**: `bool`
-
-#### `hasServo()`
-Checks if the system has a servo connected.
-- **Returns**: `bool`
-
 ## Internal Screen
 
 [↑ Back to top](#topics)
@@ -712,107 +689,41 @@ Draws a previously created icon at the specified position.
 
 ## Led Strips
 
-[↑ Back to top](#topics)
+Drives 4-wire RGB strips (non-addressable) through three PWM pins and MOSFETs. Both cheeks share the same pins, so they always show the same color. Normally configured through the `leds` section of `hardware.json`; expressions can override it with their own `leds` table in `animation.json`.
 
-#### `ledsBegin(led_count, [max_brightness])`
-Initializes the LED strip.
-- **Parameters**:
-  - `led_count` (int): The number of LEDs in the strip.
-  - `max_brightness` (int, optional): Maximum brightness (0-255). Default is `128`.
+#### `ledsBeginRgb(pinR, pinG, pinB, [invert])`
+Starts PWM on the three color pins. Set `invert` if the colors come out backwards.
 - **Returns**: `bool`
 
-#### `ledsBeginDual(led_count, led_count2, [max_brightness])`
-Initializes two individual LED strips.
-- **Parameters**:
-  - `led_count` (int): Number of LEDs in the first strip.
-  - `led_count2` (int): Number of LEDs in the second strip.
-  - `max_brightness` (int, optional): Maximum brightness (0-255). Default is `128`.
-- **Returns**: `bool`
+#### `ledsSetMode(mode, [r, g, b, speed])`
+Sets the effect. See [Led Modes](#led-modes). `r`, `g`, `b` are 0-255, `speed` is one cycle in ms (default 2000).
 
-#### `ledsIsManaged()`
-Checks if the LEDs are in managed mode.
-- **Returns**: `bool`
-
-#### `ledsGentlySeBrightness(brightness, [rate, [startAmount]])`
-Slowly ramps up the brightness to a target value.
-- **Parameters**:
-  - `brightness` (int): Target brightness.
-  - `rate` (int, optional): Units of brightness increased per frame. Default is `1`.
-  - `startAmount` (int, optional): Starting brightness. Default is `0`.
-- **Returns**: `nil`
-
-#### `ledsStackCurrentBehavior()`
-Saves the current LED behavior state to a stack, useful for temporary behavior changes.
-- **Returns**: `int`
-
-#### `ledsPopBehavior()`
-Restores the LED behavior from the top of the stack.
-- **Returns**: `int`
-
-#### `ledsSegmentRange(id, from, to)`
-Defines a segment of the LED strip for independent control.
-- **Parameters**:
-  - `id` (int): Segment ID (0-15).
-  - `from` (int): Starting LED index.
-  - `to` (int): Ending LED index.
-- **Returns**: `nil`
-
-#### `ledsSetManaged(managed)`
-Enables or disables managed mode.
-- **Parameters**:
-  - `managed` (bool): `true` to enable, `false` to disable.
-- **Returns**: `nil`
+#### `ledsSetColor(r, g, b)`
+Shortcut for a solid color.
 
 #### `ledsSetBrightness(brightness)`
-Sets the LED strip brightness.
-- **Parameters**:
-  - `brightness` (int): Brightness (0-255).
-- **Returns**: `nil`
+Sets brightness (0-255) immediately.
 
 #### `ledsGetBrightness()`
-Returns the current LED strip brightness.
 - **Returns**: `int`
 
+#### `ledsGentlySeBrightness(brightness, [rate, [startAmount]])`
+Ramps brightness from `startAmount` to `brightness`, `rate` steps per frame.
+
+#### `ledsStackCurrentBehavior()`
+Saves the current mode and color so it can be restored later.
+
+#### `ledsPopBehavior()`
+Restores the last saved mode and color.
+
+#### `ledsSetManaged(managed)`
+When managed, the second core updates the strips every frame. Scripts that want full control can turn this off and call `ledsDisplay()` themselves.
+
+#### `ledsIsManaged()`
+- **Returns**: `bool`
+
 #### `ledsDisplay()`
-Pushes LED changes to the strip. Use when managed mode is disabled.
-- **Returns**: `nil`
-
-#### `ledsSegmentBehavior(id, behavior, [p1, p2, p3, p4])`
-Sets the behavior for a specific LED segment.
-- **Parameters**:
-  - `id` (int): Segment ID (0-15).
-  - `behavior` (int): Behavior constant (e.g. `BEHAVIOR_PRIDE`, `BEHAVIOR_ROTATE`).
-  - `p1..p4` (int, optional): Behavior-specific parameters.
-- **Returns**: `nil`
-
-#### `ledsSegmentTweenBehavior(id, behavior, [p1, p2, p3, p4])`
-Transitions smoothly to a new behavior for a specific LED segment.
-- **Parameters**:
-  - `id` (int): Segment ID (0-15).
-  - `behavior` (int): Target behavior constant.
-  - `p1..p4` (int, optional): Behavior-specific parameters.
-- **Returns**: `nil`
-
-#### `ledsSegmentTweenSpeed(id, speed)`
-Sets the tween transition speed for a specific LED segment.
-- **Parameters**:
-  - `id` (int): Segment ID (0-15).
-  - `speed` (int): Tween speed (higher = slower transition).
-- **Returns**: `nil`
-
-#### `ledsSetColor(id, r, g, b)`
-Sets the color of an individual LED. Best used outside managed mode.
-- **Parameters**:
-  - `id` (int): Individual LED index.
-  - `r, g, b` (int): RGB color components (0-255).
-- **Returns**: `nil`
-
-#### `ledsSegmentColor(id, r, g, b)`
-Sets the color of a LED segment. Best used outside managed mode.
-- **Parameters**:
-  - `id` (int): Segment ID.
-  - `r, g, b` (int): RGB color components (0-255).
-- **Returns**: `nil`
+Writes the current color to the pins.
 
 ## FFT / Audio Analysis
 
@@ -1078,44 +989,6 @@ Sets the I2C operation timeout.
 #### `wireGetTimeout()`
 Gets the current I2C operation timeout.
 - **Returns**: `uint32_t`
-
-## IR Remote
-
-[↑ Back to top](#topics)
-
-These functions allow receiving commands from infrared remote controls via a VS1838B or compatible receiver.
-
-#### `startIR()`
-Initializes the IR receiver.
-- **Returns**: `bool` (`true` if successful)
-
-#### `hasIRStarted()`
-Returns whether the IR receiver has been initialized.
-- **Returns**: `bool`
-
-#### `setIRInterruptPin(pin)`
-Sets the GPIO pin connected to the IR receiver.
-- **Parameters**:
-  - `pin` (uint16_t): The GPIO pin number.
-- **Returns**: `nil`
-
-#### `enableIRInterrupt([mode])`
-Enables the interrupt on the IR receiver pin.
-- **Parameters**:
-  - `mode` (int, optional): Interrupt mode (e.g. `CHANGE`, `RISING`, `FALLING`). Default is `CHANGE`.
-- **Returns**: `nil`
-
-#### `disableIRInterrupt()`
-Disables the interrupt on the IR receiver pin.
-- **Returns**: `nil`
-
-#### `hasIRCommand()`
-Returns whether a new IR command has been received.
-- **Returns**: `bool`
-
-#### `getLastIRCommand()`
-Returns the last received IR command as an `IrCommand` object.
-- **Returns**: `IrCommand`
 
 ## 2D Models
 
@@ -1439,7 +1312,6 @@ Creates a new keyframe. Parameters depend on the type of operation being animate
 - `POWER_MODE_USB_9V`: Power mode for USB 9V PD input.
 - `POWER_MODE_BATTERY`: Power mode for battery input.
 - `BUILT_IN_POWER_MODE`: The power mode set at compile time.
-- `SERVO_COUNT`: The number of servos.
 - `MODEL_FRAME_ID_OFFSET`: Frame ID offset used for model-based frames. Model frame IDs start at this value.
 - `EDIT_MODE_PIN`: The GPIO pin number used for entering edit mode.
 - `EDIT_ENABLE_LOGIC_LEVEL`: The logic level that triggers edit mode.
@@ -1462,26 +1334,15 @@ Creates a new keyframe. Parameters depend on the type of operation being animate
 - `DEVICE_X_BUTTON_LEFT/RIGHT/UP/DOWN/CONFIRM/AUX_A/AUX_B/BACK`: Button mappings for device X (0 to `MAX_BLE_CLIENTS`).
 - `BUTTON_LEFT/RIGHT/UP/DOWN/CONFIRM/AUX_A/AUX_B/BACK`: Shorthand aliases for device 0 buttons.
 
-## Led Behavior
+## Led Modes
 
-- `BEHAVIOR_NONE`: No behavior; LEDs remain off or unchanged.
-- `BEHAVIOR_PRIDE`: Rainbow cycling color pattern.
-- `BEHAVIOR_ROTATE`: Rotates a color along the segment.
-- `BEHAVIOR_RANDOM_COLOR`: Each LED gets a random color.
-- `BEHAVIOR_FADE_CYCLE`: Fades brightness in a cycle.
-- `BEHAVIOR_ROTATE_FADE_CYCLE`: Combines rotation and fading.
-- `BEHAVIOR_STATIC_RGB`: Static RGB color.
-- `BEHAVIOR_STATIC_HSV`: Static HSV color.
-- `BEHAVIOR_RANDOM_BLINK`: Randomly blinks LEDs.
-- `BEHAVIOR_ROTATE_SINE_V`: Sine wave on brightness (V in HSV).
-- `BEHAVIOR_ROTATE_SINE_S`: Sine wave on saturation (S in HSV).
-- `BEHAVIOR_ROTATE_SINE_H`: Sine wave on hue (H in HSV).
-- `BEHAVIOR_FADE_IN`: Fades LEDs in from off to a specified color.
-- `BEHAVIOR_NOISE`: Noise/static effect.
-- `BEHAVIOR_ICON_X`: Displays an X icon pattern on the segment.
-- `BEHAVIOR_ICON_I`: Displays an I icon pattern on the segment.
-- `BEHAVIOR_ICON_V`: Displays a V icon pattern on the segment.
-- `MAX_LED_GROUPS`: Total number of available LED groups.
+Used with `ledsSetMode`.
+
+- `LED_MODE_OFF`: Strips off.
+- `LED_MODE_SOLID`: Fixed color.
+- `LED_MODE_PULSE`: Color breathing in and out. `speed` is one full cycle in ms.
+- `LED_MODE_RAINBOW`: Cycles through every hue. `speed` is one full cycle in ms.
+- `LED_MODE_BLINK`: Color on/off. `speed` is one full cycle in ms.
 
 ## Pins and GPIO
 
@@ -1561,133 +1422,6 @@ Returned by `getResetReason()`.
 - `ESP_RST_DEEPSLEEP`
 - `ESP_RST_BROWNOUT`
 - `ESP_RST_SDIO`
-
----
-
-# Led Behaviors
-
-[↑ Back to top](#topics)
-
-## Parameter Truth Table
-
-All parameter values are in the range 0–255 unless marked as **ms** (milliseconds).
-
-| Mode                  | param1       | param2         | param3          | param4         |
-|-----------------------|--------------|----------------|-----------------|----------------|
-| `none`                | -            | -              | -               | -              |
-| `pride`               | -            | -              | -               | -              |
-| `rotate`              | -            | -              | -               | speed (ms)     |
-| `random_color`        | -            | -              | -               | -              |
-| `fade_cycle`          | hue          | speed (ms)     | min_brightness  | -              |
-| `rotate_fade_cycle`   | hue          | speed (ms)     | min_brightness  | rotate_speed (ms) |
-| `color_rgb`           | red          | green          | blue            | -              |
-| `color_hsv`           | hue          | saturation     | value           | -              |
-| `random_blink`        | base_hue     | hue_variance   | brightness      | blink_speed (ms) |
-| `icon_x`              | -            | -              | -               | -              |
-| `icon_i`              | -            | -              | -               | -              |
-| `icon_v`              | -            | -              | -               | -              |
-| `rotate_sine_v`       | hue          | saturation     | speed (ms)      | -              |
-| `rotate_sine_s`       | hue          | brightness     | speed (ms)      | -              |
-| `rotate_sine_h`       | saturation   | brightness     | speed (ms)      | -              |
-| `fade_in`             | hue          | saturation     | step            | delay (ms)     |
-| `noise`               | -            | -              | step            | delay (ms)     |
-
-Parameters are passed positionally to `ledsSegmentBehavior(id, behavior, param1, param2, param3, param4)`. Unused positions should be `0`.
-
----
-
-* `BEHAVIOR_PRIDE`
-  - **Description**: Rainbow cycling pattern.
-  - **Parameters**: None.
-
-* `BEHAVIOR_ROTATE`
-  - **Description**: Rotates a single color through the segment.
-  - **Parameters**:
-    - `4`: Speed of rotation (delay in ms).
-
-* `BEHAVIOR_RANDOM_COLOR`
-  - **Description**: Each LED gets a random color.
-  - **Parameters**: None.
-
-* `BEHAVIOR_FADE_CYCLE`
-  - **Description**: Fades brightness up and down in a cycle.
-  - **Parameters**:
-    - `1`: Hue value (0-255).
-    - `2`: Speed of the fade cycle.
-    - `3`: Minimum brightness value.
-
-* `BEHAVIOR_ROTATE_FADE_CYCLE`
-  - **Description**: Combines rotation and fading.
-  - **Parameters**:
-    - `1`: Hue value (0-255).
-    - `2`: Speed of the fade cycle.
-    - `3`: Minimum brightness value.
-    - `4`: Speed of rotation (delay in ms).
-
-* `BEHAVIOR_STATIC_RGB`
-  - **Description**: Sets all LEDs in the segment to a static RGB color.
-  - **Parameters**:
-    - `1`: Red (0-255).
-    - `2`: Green (0-255).
-    - `3`: Blue (0-255).
-
-* `BEHAVIOR_STATIC_HSV`
-  - **Description**: Sets all LEDs in the segment to a static HSV color.
-  - **Parameters**:
-    - `1`: Hue (0-255).
-    - `2`: Saturation (0-255).
-    - `3`: Brightness (0-255).
-
-* `BEHAVIOR_RANDOM_BLINK`
-  - **Description**: Randomly blinks LEDs with random colors and brightness.
-  - **Parameters**:
-    - `1`: Base hue (0-255).
-    - `2`: Hue variation range.
-    - `3`: Maximum brightness.
-    - `4`: Delay between blinks (ms).
-
-* `BEHAVIOR_ROTATE_SINE_V`
-  - **Description**: Sine wave varying brightness rotates through the segment.
-  - **Parameters**:
-    - `1`: Base hue (0-255).
-    - `2`: Base saturation (0-255).
-    - `3`: Speed of the sine wave (ms).
-
-* `BEHAVIOR_ROTATE_SINE_S`
-  - **Description**: Sine wave varying saturation rotates through the segment.
-  - **Parameters**:
-    - `1`: Base hue (0-255).
-    - `2`: Base brightness (0-255).
-    - `3`: Speed of the sine wave (ms).
-
-* `BEHAVIOR_ROTATE_SINE_H`
-  - **Description**: Sine wave varying hue rotates through the segment.
-  - **Parameters**:
-    - `1`: Base saturation (0-255).
-    - `2`: Base brightness (0-255).
-    - `3`: Speed of the sine wave (ms).
-
-* `BEHAVIOR_FADE_IN`
-  - **Description**: Gradually fades LEDs in to a specified HSV color.
-  - **Parameters**:
-    - `1`: Hue (0-255).
-    - `2`: Saturation (0-255).
-    - `3`: Step size.
-    - `4`: Delay between steps (ms).
-
-* `BEHAVIOR_NOISE`
-  - **Description**: Noise/static flickering effect across the segment.
-  - **Parameters**:
-    - `3`: Step size.
-    - `4`: Delay between steps (ms).
-
-* `BEHAVIOR_ICON_X`, `BEHAVIOR_ICON_I`, `BEHAVIOR_ICON_V`
-  - **Description**: Display a simple icon pattern (X, I, or V shape) on the segment.
-  - **Parameters**: None.
-
-* `BEHAVIOR_NONE`
-  - **Description**: No behavior applied. LEDs remain off or unchanged.
-  - **Parameters**: None.
 
 ---
 

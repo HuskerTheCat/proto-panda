@@ -4,16 +4,15 @@
     "edit_mode_cycle_animation": true,
     
     "boop": {
-        "//comment": "The trigger_mode can accept either 'gpio' or 'lidar'",
-        "trigger_mode": "gpio", 
-        "gpio": 48,
-        "power_gpio": 13,
-        "gpio_state": 1,
+        "//comment": "trigger_mode is 'apds9960' (proximity sensor on I2C) or 'gpio' (simple on/off sensor). threshold: 1-255, lower = boops from farther away. longHoldDuration: hold this many ms to switch to the next face (0 disables).",
+        "trigger_mode": "apds9960",
+        "int_gpio": 48,
+        "threshold": 60,
         "enabled": true,
-        "boop_delay": 0,
         "boopTriggerDuration": 50,
+        "longHoldDuration": 1000,
         "boopAnimationName": "boop",
-        "transictionOnlyOnAnimation": "normal"
+        "returnToExpression": "normal"
     },
     "fft": {
         "gpio": 3,

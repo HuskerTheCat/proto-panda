@@ -1,15 +1,14 @@
 /*
-   s3servo.h - Library for control servo motor on esp32s3.
+   Buzzer tone helper. Trimmed from s3servo (servo motor control removed).
    Created by HA.S, October 10, 2022.
    Released into the public domain.
    mit라이선스라고하고싶은데 arduino-esp32 라이선스 따라가야겠지? 아직 라이선스 잘모르니 그냥 arduino-esp32 이거 사용했으니 이거 따름
 */
 
-#ifndef S3SERVO_H
-#define S3SERVO_H
+#ifndef TONE_ESP32_H
+#define TONE_ESP32_H
 
 #include "Arduino.h"
-#include "driver/mcpwm_prelude.h"
 
 #if defined (CONFIG_IDF_TARGET_ESP32S3)
 #define CHANNEL_MAX_NUM  7
@@ -32,73 +31,6 @@ class ToneESP32 {
     void noTone();    
 };
 
-class s3servo {
- 
-public:
- 
-    s3servo();
-    ~s3servo();
- 
-    int8_t attach(int pin, int frequency, int min_angle, int max_angle, int min_pulse, int max_pulse); // emax es9251II
-    void detach();
-    void reattach();
- 
-    void write(float angle);
-    void writeDuty(int duty);
- 
-    bool isAttached() { return _attached; }
-    bool isPaused()   { return _paused; }
-    bool usingMcpwm() { return _usingMcpwm; }
-    int  getPin()     { return _pin; }
- 
-private:
-    float mapf(float x, float in_min, float in_max, float out_min, float out_max);
-    void  _setAngleRange(int min, int max);
-    void  _setPulseRange(int min, int max);
-  
-    // ESP32-S3 MCPWM peripheral shape: 2 groups x 3 timers, each operator drives 2 generators (A/B)
-    static const int MCPWM_GROUPS            = 2;
-    static const int MCPWM_TIMERS_PER_GROUP  = 3;
-    static const int MCPWM_GENS_PER_OPERATOR = 2;
- 
-    // One timer+operator is shared by up to 2 servos (one per generator/GPIO).
-    // Shared across ALL s3servo instances since these are global hardware resources.
-    // NOTE: once created, a slot's timer+operator are intentionally never deleted
-    // (see _releaseMcpwm) — deleting a running MCPWM timer safely requires waiting
-    // for an async stop-at-TEZ event, which is racy to do on every detach. Instead
-    // the timer/operator are created once and reused for the life of the program;
-    // only the per-servo comparator+generator are created/destroyed on attach/detach.
-
-    struct McpwmTimerSlot {
-        uint8_t              operatorCount = 0;
-        bool                 initialized   = false;
-        mcpwm_timer_handle_t timer         = nullptr;
-        mcpwm_oper_handle_t  oper          = nullptr;
-        s3servo*             owners[MCPWM_GENS_PER_OPERATOR] = { nullptr, nullptr };
-    };
-
-    static McpwmTimerSlot _timers[MCPWM_GROUPS][MCPWM_TIMERS_PER_GROUP];
- 
-    bool _allocateMcpwm();  
-    void _releaseMcpwm(); 
-    void _fullyRelease();
- 
-    int _frequency;
-    int  _pin;
-    int  _minAngle;
-    int  _maxAngle;
-    int  _minPulseWidth;
-    int  _maxPulseWidth;
-    bool _attached;
-    bool _paused;  
-    int  _lastDuty;
- 
-    bool _usingMcpwm;
-    int  _mcpwmGroup;
-    int  _mcpwmTimerIdx;
-    mcpwm_cmpr_handle_t _comparator;
-    mcpwm_gen_handle_t  _generator;
-};
 
 
 #define NOTE_B0  31

@@ -106,10 +106,24 @@ end
 function _M.update()
 	local id = getCurrentAnimationStorage()
 	if id ~= _M.animationEffectId then
+		local prev = _M.animations[_M.animationEffectId]
+		if prev ~= nil then
+			if prev.onLeave then
+				prev.onLeave()
+			end
+			if prev.leds then
+				ledsPopBehavior()
+			end
+		end
 		local aux = _M.animations[id]
 		_M.animationEffectId = id
-		if aux ~= nil then  
-			if aux.onEnter then 
+		if aux ~= nil then
+			if aux.leds then
+				local leds = require("leds")
+				ledsStackCurrentBehavior()
+				leds.apply(aux.leds)
+			end
+			if aux.onEnter then
 				aux.onEnter()
 			end
 			if aux.overlay then 

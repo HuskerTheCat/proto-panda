@@ -6,10 +6,10 @@
 #include "tools/sensors.hpp"
 #include "tools/oledscreen.hpp"
 #include "tools/storage.hpp"
-#include "tools/ir.hpp"
 #include "drawing/animation.hpp"
 #include "drawing/modelanimation/keyframeplayer.hpp"
 #include "drawing/ledstrip.hpp"
+#include "tools/apds9960.hpp"
 #include "bluetooth/ble_client.hpp"
 #include "soc/rtc_cntl_reg.h"
 #include "soc/soc.h"
@@ -181,14 +181,6 @@ int getResetReason() {
   return (int)esp_reset_reason();
 }
 
-uint16_t readLidar()
-{
-  return Devices::ReadLidar();
-}
-bool hasLidar()
-{
-  return Devices::HasLidar();
-}
 
 
 
@@ -329,29 +321,6 @@ bool beginRadio(int powerLevel)
 }
 #endif
 
-bool startIR(){
-  return g_InfraRed.begin();
-}
-bool hasIRStarted(){
-  return g_InfraRed.IsStarted();
-}
-void setIRInterruptPin(uint16_t p){
-  g_InfraRed.setInterruptPin(p);
-}
-void enableIRInterrupt(int mode){
-  g_InfraRed.enableInterrupt(mode);
-}
-void disableIRInterrupt(){
-  g_InfraRed.disableInterrupt();
-}
-
-bool hasIRCommand(){
-  return g_InfraRed.hasCommand();
-}
-
-IrCommand getLastIRCommand(){
-  return g_InfraRed.getLastCommand();
-}
 
 
 #ifdef ENABLE_BLE
@@ -563,13 +532,6 @@ void LuaInterface::RegisterMethods()
   #endif
 
 
-  m_lua->FuncRegister("startIR", startIR);
-  m_lua->FuncRegister("hasIRStarted", hasIRStarted);
-  m_lua->FuncRegister("setIRInterruptPin", setIRInterruptPin);
-  m_lua->FuncRegisterOptional("enableIRInterrupt", enableIRInterrupt, CHANGE);
-  m_lua->FuncRegister("disableIRInterrupt", disableIRInterrupt);
-  m_lua->FuncRegister("hasIRCommand", hasIRCommand);
-  m_lua->FuncRegister("getLastIRCommand", getLastIRCommand);
 
 
   //System
@@ -595,18 +557,7 @@ void LuaInterface::RegisterMethods()
   m_lua->FuncRegister("getInternalAccelerometerZ", Devices::getInternalAccelerometerZ);
   m_lua->FuncRegister("getInternalAccelerometerY", Devices::getInternalAccelerometerY);
   m_lua->FuncRegister("getInternalAccelerometerX", Devices::getInternalAccelerometerX);
-  #ifdef USE_SERVO
-  m_lua->FuncRegisterOptional("startServos", Devices::StartServos, 180, 0.125f, 0.025f, 50);
-  m_lua->FuncRegister("servoPause", Devices::ServoPause);
-  m_lua->FuncRegister("servoResume", Devices::ServoResume); 
-  m_lua->FuncRegister("servoMove", Devices::ServoMove);
-  m_lua->FuncRegister("servoCount", Devices::ServoCount);
-  #endif
-  m_lua->FuncRegister("hasServo", Devices::HasServo);
 
-  //LIDAR
-  m_lua->FuncRegister("hasLidar", hasLidar);
-  m_lua->FuncRegister("readLidar", readLidar);
   //Internal sensor
   m_lua->FuncRegister("getInternalButtonStatus", getInternalButtonStatus); 
   //Panels
@@ -687,6 +638,13 @@ void LuaInterface::RegisterMethods()
   m_lua->FuncRegister("delay", delay);
   m_lua->FuncRegister("digitalWrite", digitalWrite);
   m_lua->FuncRegister("digitalRead", digitalRead);
+  //APDS-9960 boop sensor
+  m_lua->FuncRegisterOptional("apdsBegin", Apds9960::Begin, -1);
+  m_lua->FuncRegister("apdsIsStarted", Apds9960::IsStarted);
+  m_lua->FuncRegister("apdsReadProximity", Apds9960::ReadProximity);
+  m_lua->FuncRegister("apdsSetThreshold", Apds9960::SetThreshold);
+  m_lua->FuncRegister("apdsGetThreshold", Apds9960::GetThreshold);
+  m_lua->FuncRegister("apdsIsTriggered", Apds9960::IsTriggered);
   m_lua->FuncRegister("vTaskDelay", vTaskDelay);
   m_lua->FuncRegister("analogRead", analogRead);
   m_lua->FuncRegister("pinMode", pinMode);
@@ -730,14 +688,9 @@ void LuaInterface::RegisterMethods()
 
   m_lua->FuncRegisterFromObjectOpt("ledsGetBrightness", &g_leds, &LedStrip::getBrightness);
   m_lua->FuncRegisterFromObjectOpt("ledsSetBrightness", &g_leds, &LedStrip::setBrightness, (uint8_t)128);
-  m_lua->FuncRegisterFromObjectOpt("ledsBegin", &g_leds, &LedStrip::Begin, (uint16_t)128);
-  m_lua->FuncRegisterFromObjectOpt("ledsBeginDual", &g_leds, &LedStrip::BeginDual, (uint8_t)128);
-  m_lua->FuncRegisterFromObjectOpt("ledsSegmentRange", &g_leds, &LedStrip::setSegmentRange, 0);
-  m_lua->FuncRegisterFromObjectOpt("ledsSegmentBehavior", &g_leds, &LedStrip::setSegmentBehavior, 0, 0, 0, 0);
-  m_lua->FuncRegisterFromObjectOpt("ledsSegmentTweenBehavior", &g_leds, &LedStrip::setSegmentTweenBehavior, 0, 0, 0, 0);
-  m_lua->FuncRegisterFromObjectOpt("ledsSegmentTweenSpeed", &g_leds, &LedStrip::setSegmentTweenSpeed);
-  m_lua->FuncRegisterFromObjectOpt("ledsSegmentColor", &g_leds, &LedStrip::setSegmentColor);
-  m_lua->FuncRegisterFromObjectOpt("ledsSetColor", &g_leds, &LedStrip::setLedColor);
+  m_lua->FuncRegisterFromObjectOpt("ledsBeginRgb", &g_leds, &LedStrip::BeginRgb, false);
+  m_lua->FuncRegisterFromObjectOpt("ledsSetMode", &g_leds, &LedStrip::setMode, 0, 0, 0, 2000);
+  m_lua->FuncRegisterFromObjectOpt("ledsSetColor", &g_leds, &LedStrip::setColor);
   m_lua->FuncRegisterFromObjectOpt("ledsDisplay", &g_leds, &LedStrip::Display);
   m_lua->FuncRegisterFromObjectOpt("ledsSetManaged", &g_leds, &LedStrip::SetManaged);
   m_lua->FuncRegisterFromObjectOpt("ledsIsManaged", &g_leds, &LedStrip::IsManaged);
@@ -765,25 +718,12 @@ void LuaInterface::RegisterMethods()
 
 void LuaInterface::RegisterConstants()
 {
+  m_lua->setConstant("LED_MODE_OFF", (int)LED_MODE_OFF);
+  m_lua->setConstant("LED_MODE_SOLID", (int)LED_MODE_SOLID);
+  m_lua->setConstant("LED_MODE_PULSE", (int)LED_MODE_PULSE);
+  m_lua->setConstant("LED_MODE_RAINBOW", (int)LED_MODE_RAINBOW);
+  m_lua->setConstant("LED_MODE_BLINK", (int)LED_MODE_BLINK);
 
-  m_lua->setConstant("BEHAVIOR_NONE", (int)BEHAVIOR_NONE);
-  m_lua->setConstant("BEHAVIOR_PRIDE", (int)BEHAVIOR_PRIDE);
-  m_lua->setConstant("BEHAVIOR_ROTATE", (int)BEHAVIOR_ROTATE);
-  m_lua->setConstant("BEHAVIOR_RANDOM_COLOR", (int)BEHAVIOR_RANDOM_COLOR);
-  m_lua->setConstant("BEHAVIOR_FADE_CYCLE", (int)BEHAVIOR_FADE_CYCLE);
-  m_lua->setConstant("BEHAVIOR_ROTATE_FADE_CYCLE", (int)BEHAVIOR_ROTATE_FADE_CYCLE);
-  m_lua->setConstant("BEHAVIOR_STATIC_RGB", (int)BEHAVIOR_STATIC_RGB);
-  m_lua->setConstant("BEHAVIOR_STATIC_HSV", (int)BEHAVIOR_STATIC_HSV);
-  m_lua->setConstant("BEHAVIOR_RANDOM_BLINK", (int)BEHAVIOR_RANDOM_BLINK);
-  m_lua->setConstant("BEHAVIOR_ICON_X", (int)BEHAVIOR_ICON_X);
-  m_lua->setConstant("BEHAVIOR_ICON_I", (int)BEHAVIOR_ICON_I);
-  m_lua->setConstant("BEHAVIOR_ICON_V", (int)BEHAVIOR_ICON_V);
-  m_lua->setConstant("BEHAVIOR_ROTATE_SINE_V", (int)BEHAVIOR_ROTATE_SINE_V);
-  m_lua->setConstant("BEHAVIOR_ROTATE_SINE_S", (int)BEHAVIOR_ROTATE_SINE_S);
-  m_lua->setConstant("BEHAVIOR_ROTATE_SINE_H", (int)BEHAVIOR_ROTATE_SINE_H);
-  m_lua->setConstant("BEHAVIOR_FADE_IN", (int)BEHAVIOR_FADE_IN);
-  m_lua->setConstant("BEHAVIOR_NOISE", (int)BEHAVIOR_NOISE);
-  m_lua->setConstant("MAX_LED_GROUPS", (int)MAX_LED_GROUPS);
 
 
   m_lua->setConstant("POWER_MODE_NONE", (int)POWER_MODE_NONE);
@@ -850,7 +790,6 @@ void LuaInterface::RegisterConstants()
   m_lua->setConstant("DEFAULT_CANVAS_WIDTH", DEFAULT_CANVAS_WIDTH);
   m_lua->setConstant("DEFAULT_CANVAS_HEIGHT", DEFAULT_CANVAS_HEIGHT);
 
-  m_lua->setConstant("MAX_LED_GROUPS", MAX_LED_GROUPS);
   m_lua->setConstant("EDIT_MODE_PIN", EDIT_MODE_PIN);
   #ifdef USE_BOOT_PIN_FOR_EDIT_MODE
   m_lua->setConstant("USE_BOOT_PIN_FOR_EDIT_MODE", 1);

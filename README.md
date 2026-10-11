@@ -1,5 +1,12 @@
 # Protopanda
 
+> **About this fork.** A trimmed version of [mockthebear/proto-panda](https://github.com/mockthebear/proto-panda) for one specific head build. It keeps HUB75 panels, the MAX4466 microphone mouth, Wi-Fi edit mode, games, vector models and the Protopanda BLE remote. It removes MAX7219/WS2812 displays, the IR remote, lidar, servos, addressable LED strips and third-party BLE remotes. It adds:
+>
+> - **APDS-9960 boop sensor** (SDA→IO8, SCL→IO9, INT→IO48, VCC→3.3V). A boop plays the boop animation, then returns to the default face. Hold for 1 second to switch to the next face. Settings are in `misc.json` → `boop`.
+> - **4-wire RGB cheek strips** through MOSFETs (R→IO41, G→IO42, B→IO1). Modes are solid, pulse, rainbow and blink. Set in `hardware.json` → `leds`, or per expression with a `leds` table in `animation.json`.
+>
+> The rest of this README describes the original project. Some sections cover hardware this fork no longer supports.
+
 
 <p align="center">
   <img src="https://github.com/mockthebear/proto-panda/raw/main/doc/logoprotopanda.png" alt="Protopanda">

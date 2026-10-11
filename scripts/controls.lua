@@ -78,9 +78,9 @@ function _M.onLoop(dt)
 		end
 
 		if hasPressed then
-			ledsSegmentColor(dev, 100, 100, 100)
+			ledsSetColor(100, 100, 100)
 		else
-			ledsSegmentColor(dev, 0, 0, 0)
+			ledsSetColor(0, 0, 0)
 		end
 	end
 

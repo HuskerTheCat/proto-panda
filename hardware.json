@@ -30,98 +30,16 @@
                 "dma_oe": 4,
                 "dma_clk": 6
             }
-        },
-        "max7219": { 
-            "panels": 16, 
-            "horizontal_panel_count": 4, 
-            "pins": {
-                "cs": 10,
-                "din": 11,
-                "clk": 12 
-            },
-            "views": [
-                {
-                    "x": 0,
-                    "y": 0,
-                    "canvas_x": 0,
-                    "canvas_y": 0,
-                    "width": 32,
-                    "height": 8
-                },
-                {
-                    "x": 0,
-                    "y": 8,
-                    "canvas_x": 0,
-                    "canvas_y": 8,
-                    "width": 32,
-                    "height": 8
-                },
-                {
-                    "x": 0,
-                    "y": 16,
-                    "canvas_x": 16,
-                    "canvas_y": 18,
-                    "width": 32,
-                    "height": 8
-                }
-            ]  
-        },
-        "ws2812b":{
-            "maxtrix_width": 8,
-            "maxtrix_height": 8,
-            "panels": 8,
-            "horizontal_panel_count": 8,
-            "brightness": 32,
-            "views": [
-                {
-                    "x": 0,
-                    "y": 0,
-                    "canvas_x": 0,
-                    "canvas_y": 0,
-                    "width": 32,
-                    "height": 8
-                },
-                {
-                    "x": 32,
-                    "y": 0,
-                    "canvas_x": 0,
-                    "canvas_y": 8,
-                    "width": 32,
-                    "height": 8,
-                    "flip_vertical": true,
-                    "flip_horizontal": true
-                }
-            ]
         }
-        
-    }, 
-
-    "servos": {
-        "enabled": false,
-        "pins": [1,2],
-        "frequency": 50,
-        "minPulseDuty": 0.025,
-        "maxPulseDuty": 0.125,
-        "maxAngle": 180
     },
-    "leds": { 
-        "pin_mode": "double",
-        "_comment": "Modes allowed are: 'double' and 'single'. If using extra led strips, they'll all attach at the right led pin if double is set",
 
-        "groups":[
-            {
-                "_comment": "If pin_side is undefined, it defaults to 'left'",
-                "pin_side": "left",
-                "led_count": 64,
-                "mode": "pride"
-            },
-            {
-                "pin_side": "right",
-                "led_count": 64,
-                "mode": "pride"
-            }
-        ]
-
+    "leds": {
+        "_comment": "4-wire RGB strips through MOSFETs. Both cheeks share these pins. Set 'invert' to true if colors are backwards (on when they should be off). Modes: off, solid, pulse, rainbow, blink",
+        "enabled": true,
+        "pins": { "r": 41, "g": 42, "b": 1 },
+        "invert": false,
+        "mode": "solid",
+        "color": "#00aaff",
+        "speed": 2000
     }
 }
-

@@ -1,33 +1,12 @@
 {
   "input": {
-    "//comment0": "The current avaliable input modes are 'infrared', 'ble' and 'none'",
+    "//comment0": "Input modes are 'ble' and 'none'. BLE stays on so a Protopanda remote can pair later.",
     "mode": "BLE",
-    "//comment1": "'enableHidControllers' allows for generic controllers like BLE HID devices to connect with protopanda. Support is limited",
-    "enableHidControllers": true,
+    "enableHidControllers": false,
     "pairController": true,
     "maxBleDevices": 1,
-    "drivers": ["panda", "BLE-M3", "beauty-r1"]
+    "drivers": ["panda"]
   },
-  "infrared": [
-    {
-      "//comment": "Generic controller",
-      "usercode": "FF00",
-      "bind": {
-        "B9": "press(BUTTON_UP)",
-        "EA": "press(BUTTON_DOWN)",
-        "BB": "press(BUTTON_LEFT)", 
-        "BC": "press(BUTTON_RIGHT)",
-        "BF": "press(BUTTON_CONFIRM)",
-        "E6": "press(BUTTON_BACK)",
-        "BA": "press(BUTTON_AUX_A)",
-        "F3": "setRainbowShader(true)",
-        "E7": "setRainbowShader(false)",
-        "F7": "expressions.Next()",
-        "E3": "expressions.Previous()",
-        "A5": "press(BUTTON_BACK, 1)"
-      }
-    }
-  ],
   "keybinds": {
     "panda.buttons.1": "BUTTON_LEFT",
     "panda.buttons.2": "BUTTON_DOWN",
@@ -36,39 +15,6 @@
     "panda.buttons.5": "BUTTON_CONFIRM",
     "panda.buttons.6": "BUTTON_BACK",
     "panda.buttons.7": "BUTTON_AUX_A",
-    "panda.buttons.8": "BUTTON_AUX_B",
-
-    "joystick.right_hat=5": "BUTTON_LEFT",
-    "joystick.right_hat=3": "BUTTON_DOWN",
-    "joystick.right_hat=1": "BUTTON_RIGHT",
-    "joystick.right_hat=7": "BUTTON_UP",
-    "joystick.buttons.4": "BUTTON_CONFIRM",
-    "joystick.buttons.1": "BUTTON_BACK",
-
-    "joystick.left_analog_x<-10": "BUTTON_LEFT",
-    "joystick.left_analog_y>10": "BUTTON_DOWN",
-    "joystick.left_analog_x>10": "BUTTON_RIGHT",
-    "joystick.left_analog_y<-7": "BUTTON_UP",
-
-    "generic.buttons.4": "BUTTON_LEFT",
-    "generic.buttons.1": "BUTTON_DOWN",
-    "generic.buttons.3": "BUTTON_RIGHT",
-    "generic.buttons.2": "BUTTON_UP",
-    "generic.buttons.5": "BUTTON_CONFIRM",
-    "generic.buttons.6": "BUTTON_BACK",
-    "keyboard.button=180": "BUTTON_DOWN",
-    "keyboard.button=179": "BUTTON_UP",
-    "keyboard.button=181": "BUTTON_RIGHT",
-    "keyboard.button=182": "BUTTON_LEFT",
-    "keyboard.button=205": "BUTTON_CONFIRM",
-    "keyboard.button=234": "BUTTON_BACK",
-    "keyboard.button=233": "BUTTON_AUX_A",
-    "keyboard.button=64": "BUTTON_AUX_B",
-    "mouse.x>10": "BUTTON_LEFT",
-    "mouse.x<-10": "BUTTON_RIGHT",
-    "mouse.y<-10": "BUTTON_UP",
-    "mouse.y>10": "BUTTON_DOWN",
-    "mouse.buttons.1": "BUTTON_CONFIRM",
-    "mouse.buttons.4": "BUTTON_BACK"
+    "panda.buttons.8": "BUTTON_AUX_B"
   }
 }

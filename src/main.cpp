@@ -10,7 +10,6 @@
 #include "tools/hardwareconfig.hpp"
 #include "tools/storage.hpp"
 #include "tools/logger.hpp"
-#include "tools/ir.hpp"
 #include "tools/fft.hpp"
 #include "lua/luainterface.hpp"
 
@@ -42,7 +41,6 @@ TaskHandle_t g_secondCore;
 #ifdef ENABLE_EDIT_MODE
 EditMode g_editMode;
 #endif
-InfraRedManager g_InfraRed;
 ModelDict g_models;
 ModelHandler g_modelHandler;
 FFT g_fft;
@@ -245,7 +243,6 @@ void loop() {
   #ifdef ENABLE_BLE
   g_remoteControls.update();
   #endif
-  g_InfraRed.update();
   #ifdef ENABLE_BLE
   g_remoteControls.sendUpdatesToLua();
   #endif

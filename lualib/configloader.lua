@@ -3,7 +3,7 @@ local _M = {}
 local json = require("json")
 local CONFIG_FILES_DEFAULT = {"/animation.json", "/keybinds.json", "/misc.json", "/wifi.json",  "/hardware.json"}
 
-local requiredConfigs = {"expressions", "overlays", "frames", "servos","leds","boop","fft","scripts",}
+local requiredConfigs = {"expressions", "overlays", "frames", "leds","boop","fft","scripts",}
 
 function _M.LoadAndMerge(filename)
 	local fp, err = io.open(filename, "r")

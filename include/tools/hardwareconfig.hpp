@@ -20,11 +20,8 @@ class HardwareConfig{
         static bool StartDmaDisplay(HUB75_I2S_CFG &panelConfig);
         static void loadAndParseDisplay(JsonObject doc);
         static void loadHub75AndStart(JsonObject doc, bool compatibilityMode);
-        static void loadWS2812BAndStart(JsonObject doc);
-        static void loadMax7219AndStart(JsonObject doc);
-        static void loadServosAndStart(JsonObject doc);
         static int checkInvalidPin(int pin);
-        static void loadViews(JsonObject ws2812b, BaseDisplay* display, uint16_t defaultWidth, uint16_t defaultHeight);
+        static void loadViews(JsonObject config, BaseDisplay* display, uint16_t defaultWidth, uint16_t defaultHeight);
 
         static int HardwareCanvasWidth;
         static int HardwareCanvasHeight;

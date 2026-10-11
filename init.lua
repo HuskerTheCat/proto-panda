@@ -13,7 +13,6 @@ local boop = require("boop")
 local menu = require("menu")
 local expressions = require("expressions")
 local overlays = require("overlays")
-local servos = require("servos")
 
 function onSetup()
 
@@ -36,8 +35,6 @@ function onSetup()
     expressions.Load() 
     scripts.Load() 
     boop.Load()
-    generic.displaySplashMessage("Starting:\nServos")
-    servos.setup()
     generic.displaySplashMessage("Starting:\nFFT")
     fft.load()
     generic.displaySplashMessage("Starting:\nLeds")
@@ -76,7 +73,6 @@ function onLoop(dt)
     drivers.update()
     input.update()
     expressions.update()
-    servos.update(dt)
     if not scripts.Handle(dt) then
         return
     end

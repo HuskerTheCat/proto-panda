@@ -23,7 +23,6 @@ local input = {
 
     maxControls=2,
 
-    infrared={},
     keybind = {},
     forced_buttons = {},
 }
@@ -129,18 +128,6 @@ function input.parseInputLocation(str)
     return parsed,controllerType, mappedLogString
 end
 
-function input.runBindCommand(binds, opcode)
-    local f = binds[opcode]
-    if f then 
-        local success, err = pcall(f)
-        if not success then  
-            log(string.format("Error executing opcode %02X due: %s", opcode, err))
-        end
-    else
-        log(string.format("Unmapped opcode %02X", opcode))
-    end
-end
-
 function input.setupControls(maxN)
     local pdButtonIdOffset = 1
     for i=0,maxN-1 do 
@@ -168,8 +155,7 @@ end
 function input.Start()
     if input.mode == "BLE" then  
         beginBleScanning()
-    elseif input.mode == "INFRARED" then  
-        enableIRInterrupt()
+    elseif input.mode == "NONE" then
     else
         error("Invalid input mode '"..input.mode.."'")
     end
@@ -204,48 +190,6 @@ function input.Load()
         startBLE()
         setMaximumControls(maxN)
         startBLERadio(ESP_PWR_LVL_P9)
-    elseif mode == "INFRARED" then
-        generic.displaySplashMessage("Starting:\nIR")
-        startIR()
-        if not confs.infrared then  
-            error("keybinds.json missing 'infrared' which is required when infrared is enabled")
-        end
-
-        if not confs.input.infrared_gpio then  
-            error("keybinds.json missing 'infrared_gpio' in input segment")
-        end
-
-        if type(confs.input.infrared_gpio) ~= "number" then  
-            error("keybinds.json missing 'infrared_gpio' in input segment")
-        end
-
-        setIRInterruptPin(confs.input.infrared_gpio)
-
-        for i, mode in pairs(confs.infrared) do 
-            if not mode.usercode or type(mode.bind) ~= 'table' then  
-                error("keybinds.json error at element "..i..', \'usercode\' or \'bind\' is missing')
-            end
-            local code = tonumber(mode.usercode, 16)
-            if not code then  
-                error("keybinds.json error at element "..i..', \'usercode\' should be a HEX number')
-            end
-            local keymap = {}
-            log("Loaded usercode "..mode.usercode)
-            for opcodeS, func in pairs(mode.bind) do  
-                local opcode = tonumber(opcodeS, 16)
-                if not opcode then 
-                    error("keybinds.json error at element "..i..".bind. Opcode "..opcodeS.." is not a valid HEX")
-                end
-
-                local f, err = load(func)
-                if not f then  
-                    error("keybinds.json error at element "..i..'.bind['..opcodeS..']: '..err)
-                end
-                keymap[opcode] = f
-            end
-            input.infrared[code] = keymap
-        end
-        drivers.type_by_id[0] = {mode={"generic"}, type="hid"}
     elseif mode == "NONE" then
         --We just accept
     else
@@ -370,19 +314,6 @@ end
 _G.press = press
 
 function input.update()
-    if input.mode == "INFRARED" then  
-
-        local usercode, opcode = getLastIRCommand()
-        if usercode ~= 0 then  
-            local binds = input.infrared[usercode]
-            if binds then  
-                input.runBindCommand(binds, opcode)
-            else 
-                log(string.format("Unmapped IR command with usercode %02X and opcode %02X", usercode, opcode))
-            end
-        end
-    end
-
     local pdButtonIdOffset = 0
     for i=0,MAX_BLE_CLIENTS-1 do 
         local controllerList = drivers.type_by_id[i]

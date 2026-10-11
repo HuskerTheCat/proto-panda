@@ -5,11 +5,8 @@
 #include "tools/psrammap.hpp"
 #include "tools/logger.hpp"
 #include "lua/luainterface.hpp"
-#include "drawing/ledstrip.hpp"
 
 #include "tools/displays/hub75.hpp"
-#include "tools/displays/max7219.hpp"
-#include "tools/displays/ws2812.hpp"
 
 #if PANDA_SD_MODE == 1
 #include <SD.h>
@@ -19,7 +16,6 @@
 #error "NO SD_MODE Mode defined (set PANDA_SD_MODE to 1 for SD or 2 for SD_MMC)"
 #endif
 
-extern LedStrip g_leds;
 
 int HardwareConfig::HardwareCanvasWidth = DEFAULT_CANVAS_WIDTH;
 int HardwareConfig::HardwareCanvasHeight = DEFAULT_CANVAS_HEIGHT;
@@ -55,55 +51,6 @@ int HardwareConfig::checkInvalidPin(int pin){
     return pin;
 }
 
-void HardwareConfig::loadServosAndStart(JsonObject servos){
-    if (!servos["enabled"]) {
-        return;
-    }
-    
-    if (!servos["pins"].is<JsonArray>()) {
-        return;
-    }
-    
-    JsonArray pinsArray = servos["pins"].as<JsonArray>();
-    
-    if (pinsArray.size() == 0) {
-        return;
-    }
-
-    float dutyBegin = 0.025f;
-    float dutyEnd = 0.125f;
-    float maxAngle = 180;
-    int frequency = 50;
-
-    if (!servos["minPulseDuty"].is<float>()) {
-        dutyBegin = servos["minPulseDuty"];
-    }
-
-    if (!servos["maxPulseDuty"].is<float>()) {
-        dutyEnd = servos["maxPulseDuty"];
-    }
-
-    if (!servos["frequency"].is<float>()) {
-        frequency = servos["frequency"];
-    }
-
-    if (!servos["maxAngle"].is<float>()) {
-        maxAngle = servos["maxAngle"];
-    }
-
-    
-    std::vector<int> pins;
-    for (JsonVariant pin : pinsArray) {
-        if (pin.is<int>()) {
-            pins.push_back(checkInvalidPin(pin.as<int>()));
-        }
-    }
-    
-    if (pins.size() > 0) {
-        Devices::StartServos(pins, frequency, dutyBegin, dutyEnd, maxAngle);
-    }
-}
-
 void HardwareConfig::loadAndParseDisplay(JsonObject displayInfo){
     if (!displayInfo.containsKey("type")){
         OledScreen::CriticalFail("Display dont have a type");
@@ -118,10 +65,6 @@ void HardwareConfig::loadAndParseDisplay(JsonObject displayInfo){
     std::string displayType = displayInfo["type"].as<const char*>();
     if (displayType == "hub75"){
         loadHub75AndStart(displayInfo["hub75"], false);
-    }else if (displayType == "max7219"){
-        loadMax7219AndStart(displayInfo["max7219"]);
-    }else if (displayType == "ws2812b"){
-        loadWS2812BAndStart(displayInfo["ws2812b"]);
     }else{
         OledScreen::CriticalFail("Display type in hardware.json is not supported");
     }
@@ -134,12 +77,12 @@ void HardwareConfig::loadAndParseDisplay(JsonObject displayInfo){
 
 
 
-void HardwareConfig::loadViews(JsonObject ws2812b, BaseDisplay* display, uint16_t defaultWidth, uint16_t defaultHeight) {
-    if (!ws2812b.containsKey("views") || !ws2812b["views"].is<JsonArray>()) {
+void HardwareConfig::loadViews(JsonObject config, BaseDisplay* display, uint16_t defaultWidth, uint16_t defaultHeight) {
+    if (!config.containsKey("views") || !config["views"].is<JsonArray>()) {
         return;
     }
 
-    JsonArray views = ws2812b["views"].as<JsonArray>();
+    JsonArray views = config["views"].as<JsonArray>();
 
     for (JsonObject v : views) {
         if (!v.containsKey("x") || !v.containsKey("y")) {
@@ -161,127 +104,6 @@ void HardwareConfig::loadViews(JsonObject ws2812b, BaseDisplay* display, uint16_
         bool flipV        = v.containsKey("flip_vertical") ? (bool)v["flip_vertical"] : false;
         Logger::Info("Added view: %d %d  ->  %d %d   (%d,%d)", x, y, canvas_x, canvas_y, w, h);
         display->view.addView(x, y, canvas_x, canvas_y, w, h, flipH, flipV);
-    }
-}
-
-
-void HardwareConfig::loadWS2812BAndStart(JsonObject ws2812b){
-
- 
-
-    uint16_t width,height,brightness, panels, horizontal_panel_count=0;
-    if (ws2812b.containsKey("maxtrix_width")){
-        width = ws2812b["maxtrix_width"];
-    }else{
-        OledScreen::CriticalFail("Missing 'maxtrix_width' in display");
-    }
-    
-    if (ws2812b.containsKey("maxtrix_height")) {
-        height = ws2812b["maxtrix_height"];
-    }else{
-        OledScreen::CriticalFail("Missing 'maxtrix_height' in display");
-    }
-    if (ws2812b.containsKey("panels")) {
-        panels = ws2812b["panels"];
-    }else{
-        OledScreen::CriticalFail("Missing 'panels' in display");
-    }
-    if (ws2812b.containsKey("horizontal_panel_count")) {
-        horizontal_panel_count = ws2812b["horizontal_panel_count"];
-    }else{
-        OledScreen::CriticalFail("Missing 'horizontal_panel_count' in display");
-    }
-
-    if (ws2812b.containsKey("brightness")) {
-        brightness = ws2812b["brightness"];
-    }else{
-        OledScreen::CriticalFail("Missing 'brightness' in display");
-    }
-
-    CRGB *leds = g_leds.BeginScreen(width*panels, height, brightness);
-
-    Devices::Display = new WS2812BDisplay(width, height, panels, leds);
-    if (Devices::Display == nullptr){
-        Logger::Info("Failed to start WS2812BD display");
-        return;
-    }
-
-    Devices::Display->begin();
-    //This will make the pixels from the canvas at 8x8 and draw them at 0x0 in a square of widthXheight
-    Logger::Info("Started WS2812BD display!");
-
-    if (ws2812b.containsKey("views") && ws2812b["views"].is<JsonArray>()) {
-        Logger::Info("Loading views!");
-        loadViews(ws2812b, Devices::Display, width, height);
-    }
-
-}
-
-void HardwareConfig::loadMax7219AndStart(JsonObject max7219){
-    uint32_t panels = 2;
-    int csPin;
-    int dataInPin;
-    int clockPin;
-    int horizontal_panel_count=0;
-
-    if (!max7219.containsKey("pins")){
-        OledScreen::CriticalFail("Missing 'pins' in max7219 display");
-    }
-
-    JsonObject pins = max7219["pins"];
-
-    if (pins.containsKey("cs")){
-        csPin = pins["cs"];
-    }else{
-        OledScreen::CriticalFail("Missing 'cs' in display");
-    }
-
-    if (pins.containsKey("din")){
-        dataInPin = pins["din"];
-    }else{
-        OledScreen::CriticalFail("Missing 'din' in display");
-    }
-
-    if (pins.containsKey("clk")){
-        clockPin = pins["clk"];
-    }else{
-        OledScreen::CriticalFail("Missing 'clk' in display");
-    }
-
-    if (max7219.containsKey("panels")){
-        panels = max7219["panels"];
-    }else{
-        OledScreen::CriticalFail("Missing 'panels' in display");
-    }
-
-    if (max7219.containsKey("horizontal_panel_count")){
-        horizontal_panel_count = max7219["horizontal_panel_count"];
-    }else{
-        OledScreen::CriticalFail("Missing 'horizontal_panel_count' in display");
-    }
-    
-   
-    if (Devices::Display != nullptr){
-        Logger::Info("DMA display is already started.");
-        return;
-    }
-
-    //Todo check avaliable ram
-    Devices::Display = new MAX7219Display(panels, horizontal_panel_count, csPin, dataInPin, clockPin);
-    if (Devices::Display == nullptr){
-        Logger::Info("Failed to start DMA display");
-        return;
-    }
-
-    Devices::Display->begin();
-    Devices::Display->setBrightness8(128);
-    Devices::Display->clearScreen();
-    Devices::Display->flipDma();
-    Logger::Info("Started max7219 display!");
-
-    if (max7219.containsKey("views") && max7219["views"].is<JsonArray>()) {
-        Logger::Info("Loading views!");
-        loadViews(max7219, Devices::Display, 8, 8);
     }
 }
 
@@ -415,10 +237,6 @@ bool HardwareConfig::LoadConfigs(){
         Logger::Info("NO DISPLAY DEFINED!");
     }
 
-    if (hardwareConfigJson.containsKey("servos")) {
-        Logger::Info("Loading servos info");
-        loadServosAndStart(hardwareConfigJson["servos"]);
-    }
 
     hardwareConfigJson.clear();
     return true;

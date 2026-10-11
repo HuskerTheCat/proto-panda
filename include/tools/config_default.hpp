@@ -97,20 +97,13 @@ Cache file version to invalidate cache in case of firmware update
 #define OLED_SCREEN_CLOCK_FREQ 800000
 
 
-#define USE_LIDAR
-#define LIDAR_ADDR 0x29
 
 
 /*
     Led strip
 */
 
-#define LED_STRIP_PIN_1 41
-#define LED_STRIP_PIN_2 42
-#define LED_STRIP_TYPE WS2812B
-#define MAX_LED_GROUPS 16
 
-#define IF_USING_WS2812B_MATRIX_SCREEN_PIN 41
 
 /*
     Buzzer
@@ -129,8 +122,6 @@ Cache file version to invalidate cache in case of firmware update
 Servos
 */
 
-#define USE_SERVO
-#define SERVO_RESOLUTION_BITS 14
 
 
 //#define USE_INTERNAL_ACCELEROMETER
@@ -172,7 +163,6 @@ Servos
 #define DMA_GPIO_CLK 6
 
 
-#define MAX7219_SIZE 8
 
 #if PANDA_SD_MODE == 1
 #define PANDA_SD SD

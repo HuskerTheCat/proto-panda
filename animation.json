@@ -533,8 +533,7 @@
       "frames": "frames_noise",
       "animation": "loop",
       "duration": 5,
-      "onEnter": "ledsStackCurrentBehavior()  ledsSegmentBehavior(0, BEHAVIOR_NOISE) ledsSegmentBehavior(1, BEHAVIOR_NOISE)",
-      "onLeave": "ledsPopBehavior()"
+      "leds": { "mode": "blink", "color": "#ffffff", "speed": 120 }
     }
   ]
 }

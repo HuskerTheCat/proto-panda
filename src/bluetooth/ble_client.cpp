@@ -2,7 +2,6 @@
 #ifdef ENABLE_BLE
 #include "tools/logger.hpp"
 #include "tools/devices.hpp"
-#include "tools/ir.hpp"
 #include <Arduino.h>
 
 BleManager* BleManager::m_myself = nullptr;
@@ -278,9 +277,6 @@ BleManager* BleManager::Get(){
 };
 
 bool BleManager::begin(){
-  if (g_InfraRed.IsStarted()){
-    return false;
-  }
   m_myself = this;
   m_started = true;
   lastScanClearTime = millis();

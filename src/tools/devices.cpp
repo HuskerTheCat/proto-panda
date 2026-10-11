@@ -36,7 +36,6 @@ uint32_t Devices::freeHeapBytes = 0;
 uint32_t Devices::totalHeapBytes = 1;
 uint32_t Devices::freePsramBytes = 0;
 uint32_t Devices::totalPsramBytes = 1;
-uint16_t Devices::servoCount = 0;
 float Devices::percentagePsramFree = 1;
 float Devices::percentageHeapFree = 1;
 uint8_t Devices::maxBrightness = 0;
@@ -46,8 +45,6 @@ std::map<byte,bool> Devices::foundDevices;
 
 extern Animation g_animation;
 
-bool Devices::s_hasLidar = false;
-bool Devices::s_hasServo = false;
 bool Devices::s_autoCheckPower = true;
 
 float Devices::VoltageStartThreshold = VCC_THRESHOLD_START;
@@ -60,20 +57,12 @@ uint8_t Devices::targetBrigthness = 0;
 uint16_t Devices::currentTargetBrigtness = 0;
 uint8_t Devices::turnOnRate = 1;
 
-#ifdef USE_LIDAR
-VL53L0X Devices::lidar;
-uint32_t Devices::lastLidarReadTime = 0;
-uint16_t Devices::lastLidarReading = 0;
-#endif
 
 #ifdef USE_BUZZER
 ToneESP32 Devices::buzzer(BUZZER_PIN, BUZZER_CHANNEL);
 uint32_t Devices::m_toneDuration = 0;
 #endif
 
-#ifdef USE_SERVO
-s3servo *Devices::servos;
-#endif
 
 BaseDisplay *Devices::Display = nullptr;
 
@@ -360,18 +349,6 @@ void Devices::DisplayResetInfo(){
 }
 
 void Devices::StartAvaliableDevices(){
-#ifdef USE_LIDAR
-    if (Devices::foundDevices[LIDAR_ADDR]){
-        if (!Devices::lidar.init()){
-            Logger::Info("Failed to initialize lidar");
-        }else{
-            Devices::lidar.startContinuous(5);
-            Devices::lastLidarReadTime = millis()+100;
-            s_hasLidar = true;
-            Logger::Info("Lidar initialized with %d budget", Devices::lidar.getMeasurementTimingBudget());
-        }
-    }
-#endif
 #ifdef USE_INTERNAL_ACCELEROMETER
   lsm6 = new LSM6DS3(Wire, INTERNAL_ACCELEROMETER_ADDR);
   if (!lsm6->begin()){
@@ -382,39 +359,6 @@ void Devices::StartAvaliableDevices(){
 #endif
 }
 
-bool Devices::StartServos(std::vector<int> pins, int frequency, float dutyBegin, float dutyEnd, int maxAngle){
-  if (servos != nullptr){
-    return false;
-  }
-  #ifdef USE_SERVO
-    servos = new s3servo[pins.size()];
-    int bitRange = (1 << SERVO_RESOLUTION_BITS);
-    for (int i=0;i<pins.size();i++){
-      servos[i].attach(pins[i], frequency, 0, maxAngle, bitRange * dutyBegin, bitRange * dutyEnd);
-    }
-    servoCount = pins.size();
-    s_hasServo = true;
-    return true;
-  #else
-    return false;
-  #endif
-}
-
-uint16_t Devices::ReadLidar(){
-  if (!HasLidar()){
-      return 0;
-  }
-  #ifdef USE_LIDAR
-  if (Devices::lastLidarReadTime < millis()){
-    Devices::lastLidarReading = Devices::lidar.readRangeContinuousMillimeters();
-    Devices::lastLidarReadTime = millis()+20;
-    //Logger::Info("Lidar reads: %d", Devices::lastLidarReading); 
-  }
-  return Devices::lastLidarReading;
-  #else
-  return 0;
-  #endif
-}
 
 
 bool Devices::ReadInternalAcceleromter(){
@@ -459,50 +403,6 @@ void Devices::ReadSensors(){
   ReadInternalTemperature();
 }
 
-
-bool Devices::ServoPause(int servoId){
-  if (!HasServo()){
-      return false;
-  }
-  if (servoId < 0 || servoId > servoCount){
-    return false;
-  }
-  #ifdef USE_SERVO
-  servos[servoId].detach(); 
-  return true;
-  #else
-  return false;
-  #endif
-}
-bool Devices::ServoResume(int servoId){
-  if (!HasServo()){
-      return false;
-  }
-  if (servoId < 0 || servoId > servoCount){
-    return false;
-  }
-  #ifdef USE_SERVO
-  servos[servoId].reattach(); 
-  return true;
-  #else
-  return false;
-  #endif
-}
-
-bool Devices::ServoMove(int servoId, float angle){
-    if (!HasServo()){
-        return false;
-    }
-    if (servoId < 0 || servoId > servoCount){
-      return false;
-    }
-    #ifdef USE_SERVO
-    servos[servoId].write(angle); 
-    return true;
-    #else
-    return false;
-    #endif
-}
 
 bool Devices::BuzzerTone(int tone){
   #ifdef USE_BUZZER

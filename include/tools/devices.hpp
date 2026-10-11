@@ -3,14 +3,11 @@
 #include "config.hpp"
 #include "config.hpp"
 #include <Arduino.h>
-#ifdef USE_LIDAR
-    #include <VL53L0X.h>
-#endif
 #ifdef USE_INTERNAL_ACCELEROMETER
     #include "tools/LSM6DS3.hpp"
 #endif
 
-#include "tools/s3servo.hpp"
+#include "tools/tone.hpp"
 #include "tools/displays.hpp"
 #include "tools/psrammap.hpp"
 
@@ -47,14 +44,6 @@ class Devices{
         };
         static void DisplayResetInfo();
 
-        static bool HasLidar(){
-            return s_hasLidar;
-        }
-        static bool StartServos(std::vector<int> pins, int frequency=50, float dutyBegin=0.025, float dutyEnd=0.125f, int maxAngle=180);
-        static bool HasServo(){
-            return s_hasServo;
-        }
-        static uint16_t ReadLidar();
         static void BeginFrame();
         static void EndFrame();
         static void BeginAutoFrame();
@@ -98,12 +87,6 @@ class Devices{
             }
         };
         
-        static int ServoCount(){
-            return servoCount;
-        };
-        static bool ServoMove(int servoId, float angle);
-        static bool ServoPause(int servoId);
-        static bool ServoResume(int servoId);
         static bool BuzzerToneDuration(int tone, int duration);
         static bool BuzzerTone(int tone);
         static bool BuzzerNoTone();
@@ -190,9 +173,7 @@ class Devices{
         static uint64_t s_frameAutoStart;
         static uint64_t s_frameDuration;
         static uint64_t s_frameAutoDuration;    
-        static bool s_hasLidar;
         static bool s_autoCheckPower;
-        static bool s_hasServo;
         static PowerMode s_powerMode;
 
         static float VoltageStartThreshold;
@@ -215,15 +196,6 @@ class Devices{
         static uint32_t m_toneDuration;
 #endif
 
-#ifdef USE_SERVO
-        static uint16_t servoCount;
-        static s3servo *servos;
-#endif
 
 
-#ifdef USE_LIDAR
-        static VL53L0X lidar;
-        static uint32_t lastLidarReadTime;
-        static uint16_t lastLidarReading;
-#endif
 };

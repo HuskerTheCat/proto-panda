@@ -1,166 +1,72 @@
 #pragma once
 
+/*
+    Driver for non-addressable 4-wire RGB strips (+12V/5V, R, G, B).
+
+    Each color channel is switched by a logic-level MOSFET driven by a PWM pin.
+    Both cheeks share the same three pins, so they always show the same color.
+*/
 
 #include "config.hpp"
-#include "FastLED.h"
 
 #include <stack>
 
-
-enum LedBehavior{
-    BEHAVIOR_NONE,
-    BEHAVIOR_PRIDE,
-    BEHAVIOR_ROTATE,
-    BEHAVIOR_RANDOM_COLOR,
-    BEHAVIOR_FADE_CYCLE,
-    BEHAVIOR_ROTATE_FADE_CYCLE,
-    BEHAVIOR_STATIC_RGB,
-    BEHAVIOR_STATIC_HSV,
-    BEHAVIOR_RANDOM_BLINK,
-    BEHAVIOR_ICON_X,
-    BEHAVIOR_ICON_I,
-    BEHAVIOR_ICON_V,
-    BEHAVIOR_ROTATE_SINE_V,
-    BEHAVIOR_ROTATE_SINE_S,
-    BEHAVIOR_ROTATE_SINE_H,
-    BEHAVIOR_FADE_IN,
-    BEHAVIOR_NOISE,
+enum LedMode{
+    LED_MODE_OFF,
+    LED_MODE_SOLID,     // Fixed color
+    LED_MODE_PULSE,     // Color breathing in and out, speed = period in ms
+    LED_MODE_RAINBOW,   // Hue cycling, speed = period in ms
+    LED_MODE_BLINK,     // Color on/off, speed = period in ms
+    LED_MODE_LAST = LED_MODE_BLINK,
 };
 
-
-class BaseLedGroup{
-    public:
-    BaseLedGroup():from(0),to(0),behavior(BEHAVIOR_NONE),parameter(0),parameter2(0),parameter3(0),parameter4(0),time(0),time2(2),val(0),sum(5){};
-
-    
-    uint32_t from;
-    uint32_t to;
-    LedBehavior behavior;
-    int parameter;
-    int parameter2;
-    int parameter3;
-    int parameter4;
-
-    void Update(CRGB *leds);
-    void behavior_black(CRGB *leds);
-
-    void behavior_iconX(CRGB *leds);
-    void behavior_iconI(CRGB *leds);
-    void behavior_iconV(CRGB *leds);
-
-    void behavior_pride(CRGB *leds);
-    void behavior_rotate(CRGB *leds);
-    void behavior_randomBlink(CRGB *leds);
-    void behavior_randomColor(CRGB *leds);
-    void behavior_fadeCycle(CRGB *leds);
-    void behavior_rotateFadeCycle(CRGB *leds);
-    void behavior_StaticRgb(CRGB *leds);
-    void behavior_StaticHsv(CRGB *leds);
-    void behavior_sineLoop_H(CRGB *leds);
-    void behavior_sineLoop_S(CRGB *leds);
-    void behavior_sineLoop_V(CRGB *leds);
-    void behavior_fadeIn(CRGB *leds);
-    void behavior_Noise(CRGB *leds);
-
-    uint32_t time,time2;
-    int16_t val;
-    int16_t sum;
+struct LedState{
+    LedMode mode = LED_MODE_OFF;
+    uint8_t r = 0;
+    uint8_t g = 0;
+    uint8_t b = 0;
+    uint32_t speed = 2000;
 };
 
-class LedGroup : public BaseLedGroup{
+class LedStrip {
     public:
-        static LedGroup* PsramAllocateLedGroup(size_t len);
-        LedGroup():BaseLedGroup(),m_onTween(false),m_tweenCounter(0),m_tweenMillisecondsDuration(500),m_tweening(),m_tweenBuffer(nullptr),m_tweenBufferSize(0){};
+        LedStrip():m_brightness(0),m_targetBrightness(0),m_turnOnRate(1),m_outR(0),m_outG(0),m_outB(0),m_enabled(false),m_managed(false),m_gentlyTurnOn(false),m_invert(false),m_mutex(xSemaphoreCreateMutex()){};
 
-        void preallocate();
-        void addTween(float rate, LedBehavior bh, int parameter = 0, int parameter2 = 0, int parameter3 = 0, int parameter4 = 0);
-        void Update(CRGB *leds);
-        bool m_onTween;
-        uint32_t m_tweenCounter;
-        uint32_t m_tweenMillisecondsDuration;
-        BaseLedGroup m_tweening;
-        CRGB *m_tweenBuffer;
-        uint32_t m_tweenBufferSize;
-};
+        bool BeginRgb(int pinR, int pinG, int pinB, bool invert);
 
-
-class LedStrip { 
-    public:
-        LedStrip():m_groups(nullptr),m_ledAmount(0),m_maxBrightness(0),m_targetBrigthness(0),m_turnOnRate(0),m_currentTargetBrigtness(0),m_leds(nullptr),m_enabled(false),m_managed(false),m_gentlyTurnOn(false),m_hasScreen(false),m_mutex(xSemaphoreCreateMutex()){};
-        bool Begin(uint16_t ledCount, uint16_t maxbrightness){
-            return BeginDual(ledCount, 0, maxbrightness);
-        }
-        static CRGB* allocateCRGB(size_t len);
-        CRGB *BeginScreen(uint16_t w, uint16_t h, uint8_t maxbrightness);
-        bool BeginDual(uint16_t ledCount, uint16_t secondLedCount, uint8_t maxbrightness);
         void Update();
-        
-        
-        void setAllColor(CRGB col);
+        void Display();
 
-
-        void setAllColorHSV(uint8_t h, uint8_t s, uint8_t v);
-
-        CRGB *begin(){
-            return m_leds;
-        };
-
-        CRGB *end(){
-            return m_leds+m_ledAmount;
-        }
-
-        CRGB *getLedAddr(int i){
-            return m_leds+i;
-        }
+        void setMode(int mode, int r, int g, int b, int speed);
+        void setColor(int r, int g, int b);
 
         uint8_t getBrightness(){
-            return m_maxBrightness;
+            return m_brightness;
         }
+        void setBrightness(uint8_t amount);
+        void GentlySeBrightness(uint8_t bright, uint8_t rate = 1, uint8_t startAmount = 0);
+
         void SetManaged(bool set){
             m_managed = set;
         }
         bool IsManaged(){
             return m_managed;
         }
-        void setBrightness(uint8_t amount);
 
         int StackBehavior();
         int PopBehavior();
 
-        void GentlySeBrightness(uint8_t bright, uint8_t rate = 1, uint8_t startAmount=0){
-            setBrightness(startAmount); 
-            m_gentlyTurnOn = true;
-            m_targetBrigthness = bright;
-            m_turnOnRate = rate;
-            m_currentTargetBrigtness = 0;
-            if (m_turnOnRate == 0){
-                m_turnOnRate = 1;
-            }
-        }
-
-
-        void Display();
-
-        void setLedColor(int id, int r, int g, int b);
-        void setSegmentColor(int id, int r, int g, int b);
-        void setSegmentRange(int id, int from, int to);
-        void setSegmentBehavior(int id, LedBehavior bh, int parameter = 0, int parameter2 = 0, int parameter3 = 0, int parameter4 = 0);
-        void setSegmentTweenBehavior(int id, LedBehavior bh, int parameter =0, int parameter2 =0, int parameter3 =0,  int parameter4=0);
-        void setSegmentTweenSpeed(int id, int parameter =0);
-        int* getSegmentParameter1(int id);
-        int* getSegmentParameter2(int id);
-        int* getSegmentParameter3(int id);
     private:
-        LedGroup *m_groups;
-    
-        int m_ledAmount;
-        uint8_t m_maxBrightness, m_targetBrigthness, m_turnOnRate;
-        uint16_t m_currentTargetBrigtness;
-        CRGB *m_leds;
-        CRGB *m_screen;
+        static void hsvToRgb(uint8_t h, uint8_t &r, uint8_t &g, uint8_t &b);
 
-        bool m_enabled, m_managed, m_gentlyTurnOn, m_hasScreen;
+        LedState m_state;
+        std::stack<LedState> m_stateStack;
+
+        int m_pins[3];
+        uint8_t m_brightness, m_targetBrightness, m_turnOnRate;
+        uint8_t m_outR, m_outG, m_outB;
+
+        bool m_enabled, m_managed, m_gentlyTurnOn, m_invert;
 
         SemaphoreHandle_t m_mutex;
-        std::stack<LedGroup*> m_behaviorStack;
 };

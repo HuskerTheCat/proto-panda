@@ -3,599 +3,181 @@ local generic = require("generic")
 local configloader = require("configloader")
 local input = require("input")
 
-local DrawText = generic.DrawText
-local DrawSprite = generic.DrawSprite
-local Map = generic.map
-local GetCurrentFrame = expressions.GetCurrentFrame
-local SetExpression = expressions.SetExpression
-local IsFrameFromAnimation = expressions.IsFrameFromAnimation
-local GetCurrentExpressionId = expressions.GetCurrentExpressionId
+--[[
+    Boop sensor. Configured in misc.json under "boop":
+
+    trigger_mode        "apds9960" (proximity over I2C) or "gpio" (simple on/off sensor)
+    int_gpio            apds9960: pin wired to the sensor's INT (-1 to poll over I2C only)
+    threshold           apds9960: proximity 1-255 that counts as a boop (higher = closer)
+    gpio / gpio_state   gpio: input pin and the level it reads when booped
+    boopTriggerDuration ms the sensor must stay triggered before the boop starts
+    longHoldDuration    ms of holding to switch to the next face instead (0 disables)
+    boopAnimationName   expression played while booped
+    returnToExpression  expression shown after a boop (defaults to main_animation)
+
+    A short boop plays the boop animation and then goes back to the default face.
+    Holding past longHoldDuration beeps, and letting go switches to the next face.
+]]
 
 local _M = {
+    config = {},
+    mode = "apds9960",
+    configured = false,
+
     boopIsOn = false,
-    config = {},   
-    avgRead = 0,
-    mode = "lidar",
-    
-    calibration_stage = 1,
-    measurementsMax = 50,
-    avg = 0,
-    measurements=0,
-    minimumLidar=0,
-    triggerPosition=0,
-    maxLidarProcessing = 400,
+    triggeredTime = 0,
+    longHoldFired = false,
+    baseExpression = nil,
 
-
-    boopTimerDuration = 500,
-    boopTimer = 0,
-
-    gpioTriggeredOnDuration=0,
-
-
-    isBooped = false,
+    quit = false,
 }
 
+local function sensorTriggered()
+    if _M.mode == "apds9960" then
+        return apdsIsTriggered()
+    end
+    return digitalRead(_M.gpio) == _M.gpio_state
+end
 
 function _M.Load()
-    _M.gear_sprite = decodePng("/lualib/gear.png")
     _M.config = configloader.Get().boop
+    local config = _M.config
 
-
-
-    if not _M.config["trigger_mode"] then
-        _M.config["trigger_mode"] = "lidar"
-    end
-
-    if _M.config["enabled"]  == false then  
+    if config.enabled == false then
         return
     end
 
+    _M.mode = config.trigger_mode or "apds9960"
+    _M.boopTriggerDuration = tonumber(config.boopTriggerDuration) or 50
+    _M.longHoldDuration = tonumber(config.longHoldDuration) or 1000
 
-    _M.mode = _M.config["trigger_mode"]
-    if _M.mode == "gpio" then  
-        if type(_M.config["gpio"]) ~= 'number' then  
-            error("Boop mode gpio is enabled. The field 'gpio' is not present or is not a number")
+    if _M.mode == "apds9960" then
+        local threshold = tonumber(dictGet("boop_threshold")) or tonumber(config.threshold) or 60
+        local intPin = tonumber(config.int_gpio) or -1
+        if not apdsBegin(threshold, intPin) then
+            generic.displayWarning("Boop", "APDS-9960 not found", 2000)
+            return
         end
-        if type(_M.config["gpio_state"]) ~= 'number' then  
-            error("Boop mode gpio is enabled. The field 'gpio' is not present or is not a number")
+    elseif _M.mode == "gpio" then
+        if type(config.gpio) ~= 'number' or type(config.gpio_state) ~= 'number' then
+            error("Boop mode gpio needs numeric 'gpio' and 'gpio_state' in misc.json")
         end
-
-        if type(_M.config["gpio_state"]) ~= 'number' and type(_M.config["gpio_state"]) ~= nil then  
-            error("Boop mode gpio is enabled. The field 'power_gpio' is is not a number")
-        end
-
-        pinMode(_M.config["gpio"], INPUT_PULLDOWN)
-        _M.gpio = _M.config["gpio"]
-        _M.gpio_state = _M.config["gpio_state"]
-        _M.power_gpio = tonumber(_M.config["power_gpio"])
-        if _M.power_gpio then  
-            pinMode(_M.power_gpio, OUTPUT)
-            digitalWrite(_M.power_gpio, HIGH)
-        end
-    end
-    print("Mode is ".._M.mode)
-
-    if _M.config["boopAnimationName"] then
-        if type(_M.config["boopAnimationName"]) ~= "string" then 
-            error("Field 'boopAnimation' should be an string")
-        end
-        local exp = expressions.GetExpression(_M.config["boopAnimationName"])
-        if not exp then 
-            error("On boop 'boopAnimationName' is defined the ".._M.config["boopAnimationName"].." but thats not a valid expression")
-        end
-        if exp.transition then 
-            error("On boop 'boopAnimationName' the animation should have transition=false")
-        end
-    end
-    if _M.config["transictionOnlyOnAnimation"] then
-        if type(_M.config["transictionOnlyOnAnimation"]) ~= "string" then 
-            error("Field 'transictionOnlyOnAnimation' should be an string")
-        end
-        local exp = expressions.GetExpression(_M.config["transictionOnlyOnAnimation"])
-        if not exp then 
-            error("On boop 'transictionOnlyOnAnimation' is defined the ".._M.config["transictionOnlyOnAnimation"].." but thats not a valid expression")
-        end
-        if exp.transition then 
-            error("On boop 'transictionOnlyOnAnimation' the animation should have transition=false")
-        end
+        _M.gpio = config.gpio
+        _M.gpio_state = config.gpio_state
+        pinMode(_M.gpio, _M.gpio_state == 1 and INPUT_PULLDOWN or INPUT_PULLUP)
+    else
+        error("Invalid boop trigger_mode '"..tostring(_M.mode).."'. Allowed: apds9960, gpio")
     end
 
-    if _M.config["transictionInOnlyOnSpecificFrame"] then
-        if type(_M.config["transictionInOnlyOnSpecificFrame"]) ~= "number" then 
-            error("Field 'transictionInOnlyOnSpecificFrame' should be an number")
-        end
-    end 
-    
-    if _M.config["transictionOutOnlyOnSpecificFrame"] then
-        if type(_M.config["transictionOutOnlyOnSpecificFrame"]) ~= "number" then 
-            error("Field 'transictionOutOnlyOnSpecificFrame' should be an number")
-        end
+    local boopExp = expressions.GetExpression(config.boopAnimationName or "boop")
+    if not boopExp or boopExp.transition then
+        error("boopAnimationName '"..tostring(config.boopAnimationName).."' must be a non-transition expression")
+    end
+    _M.boopExpression = boopExp.name
+
+    _M.returnExpression = config.returnToExpression or configloader.Get().main_animation
+    if _M.returnExpression and not expressions.GetExpression(_M.returnExpression) then
+        error("returnToExpression '"..tostring(_M.returnExpression).."' is not a valid expression")
     end
 
-    if _M.mode == "gpio" then 
-        return
-    end
-
-    if dictGet("boop_configured") ~= "1" then  
-        print("Boop is not configured yet.")
-        _M.configured = false
-        return
-    end
     _M.configured = true
-
-    _M.minimumLidar = tonumber(dictGet("boop_min") ) or 0
-    _M.triggerPosition = tonumber(dictGet("boop_trigg"))  or 0
-    _M.boopTimerDuration = tonumber(_M.config["boopTriggerDuration"])
-        or tonumber(dictGet("boop_duration"))
-        or tonumber(_M.config["boop_delay"])
-        or 500
-
-    print("Boop configuration loaded min=".._M.minimumLidar.." trigger=".._M.triggerPosition.." timer=".._M.boopTimerDuration)
-
-    if _M.triggerPosition == 0 then 
-        print("Boop is not configured yet!")
-        _M.configured = false
-        return
-    end
-end
-
-
-function _M.onEnter()
-    _M.old_managed = isPanelManaged()
-    setPanelManaged(false)
-    delay(500)
-    toneDuration(440, 500)
-    _M.calibration_stage = 1
-    _M.triggerPosition=0
-    _M.quit = false
-    if _M.mode ~= "lidar" then  
-        if _M.calibration_stage < 6 then  
-            _M.calibration_stage = 6
-            if _M.triggerPosition == 0 then 
-                _M.triggerPosition = 100
-            end
-            if _M.minimumLidar == 0 then 
-                _M.minimumLidar = 50
-            end
-        end
-    else
-        if not hasLidar() then  
-            log("Attempted to calibrate boop, but lidar is not present")
-            generic.displayWarning("No lidar", "No lidar present", 2000)
-            return false
-        end
-    end
-    return true
-end
-
-function _M.EnterDisplayConfig()
-    if not hasLidar() then  
-        return false
-    end
-    _M.old_managed = isPanelManaged()
-    setPanelManaged(false)
-    delay(500)
-    toneDuration(440, 500)
-    _M.calibration_stage = 7
-    _M.quit = false
-    return true
-end
-
-
-function _M.Calibrate(dt)
-    
-    if input.readButtonStatus(BUTTON_CONFIRM) == BUTTON_JUST_PRESSED then 
-        if _M.calibration_stage == 1 then
-            toneDuration(440, 500)
-            _M.calibration_stage = 2
-            _M.measurements = 0
-            _M.avg = 0
-        elseif _M.calibration_stage == 3 then
-            toneDuration(440, 500)
-            _M.calibration_stage = 4
-            _M.measurements = 0
-            _M.avg = 0
-        elseif _M.calibration_stage == 5 then
-            toneDuration(440, 500)
-            _M.calibration_stage = 6
-        elseif _M.calibration_stage == 6 then
-            toneDuration(440, 500)
-            _M.calibration_stage = 7
-            _M.boopTimer = 0
-            _M.boopTimerDuration = 500
-            _M.calibrationReading = 0
-            _M.calibrationOk = 0
-        elseif _M.calibration_stage == 7 then
-            _M.calibration_stage = 8
-            toneDuration(440, 500)
-        elseif _M.calibration_stage == 8 then
-            _M.calibration_stage = 9
-            toneDuration(440, 500)
-            _M.quit = true
-            dictSet("has_boop", "1")
-            dictSet("boop_configured", "1")
-            dictSet("boop_min", tostring(_M.minimumLidar))
-            dictSet("boop_trigg", tostring(_M.triggerPosition))
-            dictSet("boop_duration", tostring(_M.boopTimerDuration))
-            dictSave()
-            if _M.old_managed then
-               setPanelManaged(true)
-            end
-        end
-    end
-    if input.readButtonStatus(BUTTON_LEFT) == BUTTON_JUST_PRESSED then 
-        if _M.calibration_stage == 5 then
-            toneDuration(640, 500)
-            _M.calibration_stage = 4
-        end
-    end
-    if input.readButtonStatus(BUTTON_CONFIRM) == BUTTON_PRESSED  then 
-        local reading = readLidar() 
-        if reading < 8190 then
-            _M.avg =  _M.avg + reading
-            _M.measurements = _M.measurements +1
-        end
-        if _M.measurements >= _M.measurementsMax then  
-            if _M.calibration_stage == 2 then
-                _M.calibration_stage = 3
-                _M.minimumLidar = math.floor(_M.avg /_M.measurements)
-            elseif _M.calibration_stage == 4 then
-                _M.calibration_stage = 5
-                _M.triggerPosition = math.floor(_M.avg /_M.measurements)
-                if _M.triggerPosition > _M.maxLidarProcessing then  
-                    _M.triggerPosition = _M.maxLidarProcessing
-                end
-            end
-        end
-    else
-        _M.avg = 0
-        _M.measurements = 0
-    end
-
-    if _M.calibration_stage == 7 then 
-        if input.readButtonStatus(BUTTON_UP) == BUTTON_JUST_PRESSED then 
-            if _M.boopTimerDuration == 1 then 
-                _M.boopTimerDuration = 0
-            end
-            _M.boopTimerDuration = _M.boopTimerDuration + 50
-            toneDuration(340, 50)
-            _M.boopTimer = 0
-        end
-        if input.readButtonStatus(BUTTON_DOWN) == BUTTON_JUST_PRESSED then 
-            _M.boopTimerDuration = _M.boopTimerDuration - 50
-            toneDuration(640, 50)
-            _M.boopTimer = 0
-            if _M.boopTimerDuration <= 0 then  
-                _M.boopTimerDuration = 1
-            end
-        end
-        _M.calibrationReading, _M.calibrationOk = _M.readLidar()
-        _M.isBoopedCheck(_M.calibrationReading, _M.calibrationOk, dt)
-    end
-    if input.readButtonStatus(BUTTON_BACK) == BUTTON_JUST_PRESSED then 
-        _M.quit = true
-        if _M.old_managed then
-           setPanelManaged(true)
-        end
-    end
-end
-
-
-function _M.CalibrateDraw()
-    oledClearScreen()
-    if _M.calibration_stage == 1 then 
-        clearPanelBuffer()
-        DrawSprite(32-8/2,16-8/2, 8, 8, _M.gear_sprite)
-        DrawSprite(64+32-8/2,16-8/2, 8, 8, _M.gear_sprite)
-        flipPanelBuffer()
-        oledSetCursor(0, 0)
-       
-        oledDrawText("Calibarion will\nhappen in 4 steps\nPress confirm to\nstart")
-        oledSetFontSize(1)
-        oledSetCursor(32, 64-8)
-        oledDrawText("[Confirm] Next")
-        
-    elseif _M.calibration_stage == 2 then 
-        clearPanelBuffer()
-        DrawSprite(32-8/2,16-8/2, 8, 8, _M.gear_sprite)
-        DrawSprite(64+32-8/2,16-8/2, 8, 8, _M.gear_sprite)
-        flipPanelBuffer()
-        oledSetCursor(0, 0)       
-        oledDrawText("Place your hand ~2cm\nfrom touching the\nfront of visor and\nhold confirm.\n\n".._M.measurements..'/'.._M.measurementsMax)
-        oledSetFontSize(1)
-
-        oledSetCursor(16, 64-8)
-        oledDrawText("[Hold Confirm] Next")
-      
-    elseif _M.calibration_stage == 3 then 
-        clearPanelBuffer()
-        DrawSprite(32-8/2,16-8/2, 8, 8, _M.gear_sprite)
-        DrawSprite(64+32-8/2,16-8/2, 8, 8, _M.gear_sprite)
-        flipPanelBuffer()
-        oledSetCursor(0, 0)       
-        oledDrawText("Min: ".._M.minimumLidar..'\nPress confirm for \nnext step')
-        oledSetFontSize(1)
-        oledSetCursor(32, 64-8)
-        oledDrawText("[Confirm] Next")
-  
-    elseif _M.calibration_stage == 4 then 
-        clearPanelBuffer()
-        local reading, ok = _M.readLidar()
-        _M.drawLidarBar(reading, ok)
-        oledSetCursor(0, 12) 
-        oledDrawText("Move your hand on the\ndistance you want to\nstart the booping\nR: "..math.floor(reading).."mm\n".._M.measurements..'/'.._M.measurementsMax)
-        oledSetFontSize(1)
-        oledSetCursor(16, 64-8)
-        oledDrawText("[Hold Confirm] Next")
-        flipPanelBuffer()
-  
-    elseif _M.calibration_stage == 5 then 
-        clearPanelBuffer()
-        
-        local reading, ok = _M.readLidar()
-        oledSetCursor(20, 24) 
-        if _M.drawLidarBar(reading, ok) then  
-           
-            oledSetFontSize(2)
-            oledDrawText("BOOP")
-            DrawText(17, 23, "BOOP", color565(255,255,255), color565(0,0,0))
-            DrawText(64+17, 23, "BOOP", color565(255,255,255), color565(0,0,0))
-        else
-            oledSetFontSize(2)
-            oledDrawText("----")
-            DrawText(17, 23, "----", color565(255,255,255), color565(0,0,0))
-            DrawText(64+17, 23, "----", color565(255,255,255), color565(0,0,0))
-        end
-        oledSetFontSize(1)
-        oledSetCursor(0, 38) 
-        oledDrawText("This is ok?")
-        oledSetCursor(10, 64-8)
-        oledDrawText("[<<<] Back [Confirm] Next")
-        flipPanelBuffer()
-    elseif _M.calibration_stage == 6 then 
-        oledSetCursor(0, 0) 
-        oledDrawText("To avoid unwanted tr-igger. Lets configure\na timer in next step\n[UP] increase the timer\n[DOWN] decreases")
-        oledSetFontSize(1)
-        oledSetCursor(32, 64-8)
-        oledDrawText("[Confirm] Next")
-
-        DrawSprite(32-8/2,16-8/2, 8, 8, _M.gear_sprite)
-        DrawSprite(64+32-8/2,16-8/2, 8, 8, _M.gear_sprite)
-        flipPanelBuffer()
-    elseif _M.calibration_stage == 7 then 
-        clearPanelBuffer()
-        
-        oledSetCursor(20, 24) 
-        _M.drawLidarBar(_M.calibrationReading, _M.calibrationOk)
-
-        drawPanelRect(0, 16, 16, 16, color565(255,255,255))
-        drawPanelRect(64+16, 16, 16, 16, color565(255,255,255))
-        oledDrawRect(0, 22, 16, 16, 1)
-
-        local ratio = (_M.boopTimer/_M.boopTimerDuration)
-        if (ratio < 0) then  
-            ratio = 0
-        end
-        if (ratio > 1) then  
-            ratio = 1
-        end
-
-        if ratio*14 > 0 then
-            oledDrawFilledRect(1,23, ratio * 14, 14, 1)
-            drawPanelFillRect(1,  17, ratio*14, 14, color565((1-ratio)*255,ratio * 255,0))
-            drawPanelFillRect(65+16, 17, ratio*14, 14, color565((1-ratio)*255,ratio * 255,0))
-        end
-
-        if _M.isBooped then  
-            oledSetFontSize(2)
-            oledDrawText("BOOP!")
-            DrawText(17, 23, "BOOP!", color565(255,255,255), color565(0,0,0))
-            DrawText(64+17+16, 23, "BOOP!", color565(255,255,255), color565(0,0,0))
-        else
-            oledSetFontSize(2)
-            oledDrawText("----")
-            DrawText(17, 23, "-----", color565(255,255,255), color565(0,0,0))
-            DrawText(64+17+16, 23, "-----", color565(255,255,255), color565(0,0,0))
-        end
-        oledSetFontSize(1)
-        oledSetCursor(0, 48) 
-        oledDrawText("Timer: ".._M.boopTimerDuration.." ms /\\+ \\/-")
-
-        oledSetCursor(32, 64-8)
-        oledDrawText("[Confirm] Next")
-
-        flipPanelBuffer()
-    elseif _M.calibration_stage == 8 then
-        clearPanelBuffer()
-        DrawSprite(32-8/2,16-8/2, 8, 8, _M.gear_sprite)
-        DrawSprite(64+32-8/2,16-8/2, 8, 8, _M.gear_sprite)
-        flipPanelBuffer()
-        oledSetCursor(0, 0)
-        oledSetFontSize(2)       
-        oledDrawText("Completed.")
-        oledSetFontSize(1)
-        oledSetCursor(32, 64-8)
-        oledDrawText("[Confirm] Exit")
-                
-    end
-    oledDisplay()
-end
-
-function _M.drawLidarBar(reading, ok)
-    local rd = Map(reading, 0, _M.maxLidarProcessing, 1, 62)
-    local rd2 = Map(reading, 0, _M.maxLidarProcessing, 1, 126)
-    drawPanelRect(0, 0, 63, 5, color565(255,255,255))
-    drawPanelRect(64, 0, 63, 5, color565(255,255,255))
-    oledDrawRect(0,0, 127, 10, 1)
-    oledDrawFilledRect(1,1, rd2, 8, 1)
-    local booped = false
-    if ok then
-        if _M.triggerPosition > 0 then
-            if reading > _M.minimumLidar and reading < _M.triggerPosition then
-                drawPanelFillRect(65,  1, rd, 3, color565(0,255,0))
-                drawPanelFillRect(1,   1, rd, 3, color565(0,255,0))
-                booped = true
-            else
-                drawPanelFillRect(65,  1, rd, 3, color565(200,255,0))
-                drawPanelFillRect(1,   1, rd, 3, color565(200,255,0))
-            end
-        else 
-            drawPanelFillRect(65,  1, rd, 3, color565(255,255,255))
-            drawPanelFillRect(1,   1, rd, 3, color565(255,255,255))
-        end
-    else
-        drawPanelFillRect(65,  1, 62, 3, color565(255,0,0))
-        drawPanelFillRect(1,   1, 62, 3, color565(255,0,0))
-    end
-    if _M.triggerPosition > 0 then 
-        rd = Map(_M.triggerPosition, 0, _M.maxLidarProcessing, 1, 62)
-        rd2 = Map(_M.triggerPosition, 0, _M.maxLidarProcessing, 1, 126)
-        oledDrawLine(rd2, 0, rd2, 10, 0)
-        oledDrawLine(rd2, 10, rd2, 20, 1)
-        drawPanelLine(rd, 0, rd, 8, color565(0,0,255))
-        drawPanelLine(64+rd, 0, 64+rd, 8, color565(0,0,255))
-
-        rd = Map(_M.minimumLidar, 0, _M.maxLidarProcessing, 1, 62)
-        rd2 = Map(_M.minimumLidar, 0, _M.maxLidarProcessing, 1, 126)
-        oledDrawLine(rd2, 0, rd2, 10, 0)
-        oledDrawLine(rd2, 10, rd2, 20, 1)
-        drawPanelLine(rd, 0, rd, 8, color565(255,0,0))
-        drawPanelLine(64+rd, 0, 64+rd, 8, color565(255,0,0))
-    end
-    return booped
-end
-
-function _M.readLidar()
-    local readingRaw = readLidar()
-    local reading = readingRaw
-    local ok = true
-    if reading >= 8190 then
-        out_of_range_color = color565(255,0,0)
-        ok = false
-    elseif reading > _M.maxLidarProcessing then 
-        reading = _M.maxLidarProcessing
-    end
-    if reading <= 0 then 
-        reading = 0
-    end
-    if ok then
-        _M.avgRead = _M.avgRead * 0.8 + reading * 0.2
-    end
-    return _M.avgRead, ok, readingRaw
-end
-
-function _M.isBoopedCheck(dt)
-    local isSensorPressed = false
-    if _M.mode == "lidar" then 
-        if hasLidar() then
-
-            local reading, ok = _M.readLidar()
-
-            if ok then 
-                if reading > _M.minimumLidar and reading < _M.triggerPosition then
-                    isSensorPressed = true
-                    _M.boopTimer = _M.boopTimer+dt  
-                else 
-                    _M.boopTimer = 0
-                end
-                if _M.boopTimer >= _M.boopTimerDuration then 
-                    _M.boopTimer = _M.boopTimerDuration
-                    _M.isBooped = true
-                    return true, isSensorPressed
-                end
-            else 
-                if _M.isBooped then 
-                    return true, isSensorPressed
-                end
-                _M.boopTimer = 0
-            end
-            _M.isBooped = false
-        end
-        return false, isSensorPressed
-    elseif _M.mode == "gpio" then 
-        isSensorPressed = digitalRead(_M.gpio) == _M.gpio_state
-        if not _M.isBooped then
-            if isSensorPressed then  
-                _M.boopTimer = _M.boopTimer+dt  
-            else
-                _M.boopTimer = 0
-            end
-            if _M.boopTimer >= _M.boopTimerDuration then 
-                _M.boopTimer = 0
-                _M.isBooped = true
-                return true, isSensorPressed
-            end
-        else 
-            if _M.power_gpio and _M.gpioTriggeredOnDuration > 10000 then  
-                digitalWrite(_M.power_gpio, LOW)
-            end
-            _M.gpioTriggeredOnDuration = _M.gpioTriggeredOnDuration + dt
-            if digitalRead(_M.gpio) ~= _M.gpio_state then  
-                _M.boopTimer = _M.boopTimer+dt  
-            else
-                _M.boopTimer = 0
-            end
-            if _M.boopTimer >= _M.boopTimerDuration then 
-                _M.boopTimer = 0
-                _M.gpioTriggeredOnDuration = 0
-                _M.isBooped = false
-                digitalWrite(_M.power_gpio, HIGH)
-                return false, isSensorPressed
-            end
-            return true, isSensorPressed
-        end
-    end
-    return false, isSensorPressed
+    print("Boop mode is ".._M.mode)
 end
 
 function _M.reset()
     _M.boopIsOn = false
+    _M.triggeredTime = 0
+    _M.longHoldFired = false
 end
 
 function _M.manageBoop(dt)
-
-    local config = _M.config
-    if not _M.configured and not config.enabled  then
+    if not _M.configured then
         return
     end
-    local isBooped = _M.isBoopedCheck(dt)
 
-    if isBooped then 
-        if not _M.boopIsOn then
-            local isOnCorrectFrame = true
-            if config.transictionOnlyOnAnimation then  
-                if not IsFrameFromAnimation(getPanelCurrentFace(), config.transictionOnlyOnAnimation) then  
-                    isOnCorrectFrame = false
-                end
-            end
-            if config.transictionInOnlyOnSpecificFrame then 
-                if config.transictionInOnlyOnSpecificFrame ~= GetCurrentFrame() then  
-                    isOnCorrectFrame = false
-                end
-            end
-            if isOnCorrectFrame then
-                _M.boopIsOn = true
-                _M.prevExpression = GetCurrentExpressionId()
-                SetExpression(config.boopAnimationName)
-            end
+    if sensorTriggered() then
+        _M.triggeredTime = _M.triggeredTime + dt
+
+        if not _M.boopIsOn and _M.triggeredTime >= _M.boopTriggerDuration then
+            _M.boopIsOn = true
+            _M.baseExpression = expressions.GetCurrentExpressionId()
+            expressions.SetExpression(_M.boopExpression)
         end
-    else
-        if IsFrameFromAnimation(getPanelCurrentFace(), config.boopAnimationName)  then  
-            if config.transictionOutOnlyOnSpecificFrame then 
-                if config.transictionOutOnlyOnSpecificFrame ~= GetCurrentFrame() then  
-                    return
-                end
-            end
-            local menu = require("menu")
-            if menu.menuExpression == config.boopAnimationName then
-                --Avoid dropping the animation if it was a user selected one
-                return
-            end
-            _M.boopIsOn = false   
-            SetExpression(_M.prevExpression)       
+
+        if _M.boopIsOn and not _M.longHoldFired and _M.longHoldDuration > 0 and _M.triggeredTime >= _M.longHoldDuration then
+            _M.longHoldFired = true
+            toneDuration(880, 80)
+        end
+        return
+    end
+
+    if _M.boopIsOn then
+        if _M.longHoldFired then
+            expressions.Next(_M.baseExpression)
+        elseif _M.returnExpression then
+            expressions.SetExpression(_M.returnExpression)
+        else
+            expressions.SetExpression(_M.baseExpression)
         end
     end
-    
+    _M.reset()
+end
+
+--[[
+    Calibration screen (Settings > Calibrate boop, needs a remote).
+    Shows the live proximity reading. LEFT/RIGHT move the threshold,
+    UP sets it just under the current reading, CONFIRM saves, BACK cancels.
+]]
+
+function _M.onEnter()
+    if _M.mode ~= "apds9960" or not apdsIsStarted() then
+        generic.displayWarning("Boop", "No APDS-9960", 2000)
+        return false
+    end
+    _M.quit = false
+    _M.newThreshold = apdsGetThreshold()
+    return true
+end
+
+function _M.Calibrate(dt)
+    local reading = apdsReadProximity()
+    _M.lastReading = reading
+
+    if input.readButtonStatus(BUTTON_LEFT) == BUTTON_JUST_PRESSED then
+        _M.newThreshold = math.max(1, _M.newThreshold - 5)
+    elseif input.readButtonStatus(BUTTON_RIGHT) == BUTTON_JUST_PRESSED then
+        _M.newThreshold = math.min(255, _M.newThreshold + 5)
+    elseif input.readButtonStatus(BUTTON_UP) == BUTTON_JUST_PRESSED then
+        _M.newThreshold = math.max(1, reading - 10)
+    elseif input.readButtonStatus(BUTTON_CONFIRM) == BUTTON_JUST_PRESSED then
+        apdsSetThreshold(_M.newThreshold)
+        dictSet("boop_threshold", tostring(_M.newThreshold))
+        dictSave()
+        toneDuration(440, 200)
+        _M.quit = true
+    elseif input.readButtonStatus(BUTTON_BACK) == BUTTON_JUST_PRESSED then
+        _M.quit = true
+    end
+end
+
+function _M.CalibrateDraw()
+    local reading = _M.lastReading or 0
+    oledClearScreen()
+    oledSetFontSize(1)
+    oledSetCursor(0, 0)
+    oledDrawText("Boop sensitivity\nNow: "..reading.."  Trigger: ".._M.newThreshold)
+
+    local barW = math.floor(reading * 127 / 255)
+    oledDrawRect(0, 26, 128, 10, 1)
+    oledDrawFilledRect(0, 26, barW, 10, 1)
+    local tx = math.floor(_M.newThreshold * 127 / 255)
+    oledDrawFilledRect(tx, 22, 1, 18, 1)
+
+    oledSetCursor(0, 44)
+    oledDrawText(reading >= _M.newThreshold and "BOOP!" or "")
+    oledSetCursor(0, 56)
+    oledDrawText("</> adj ^ auto OK save")
+    oledDisplay()
 end
 
 return _M
