@@ -10,7 +10,7 @@
         "threshold": 60,
         "enabled": true,
         "boopTriggerDuration": 50,
-        "longHoldDuration": 1000,
+        "longHoldDuration": 2000,
         "boopAnimationName": "boop",
         "returnToExpression": "normal"
     },

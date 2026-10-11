@@ -49,7 +49,7 @@ function _M.Load()
 
     _M.mode = config.trigger_mode or "apds9960"
     _M.boopTriggerDuration = tonumber(config.boopTriggerDuration) or 50
-    _M.longHoldDuration = tonumber(config.longHoldDuration) or 1000
+    _M.longHoldDuration = tonumber(config.longHoldDuration) or 2000
 
     if _M.mode == "apds9960" then
         local threshold = tonumber(dictGet("boop_threshold")) or tonumber(config.threshold) or 60
