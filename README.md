@@ -1,9 +1,8 @@
 # Protopanda
 
-**🇺🇸 English** | [🇧🇷 Português](README.pt-br.md)
 
 <p align="center">
-  <img src="doc/logoprotopanda.png" alt="Protopanda">
+  <img src="https://github.com/mockthebear/proto-panda/raw/main/doc/logoprotopanda.png" alt="Protopanda">
 </p>
 
 <p align="center">
@@ -22,7 +21,7 @@ Protopanda is an open source platform (firmware and hardware) for controlling pr
 5. [Powering](#powering)
 6. [Panels](#panels)
 7. [Face and Expressions](#face-and-expressions)
-8. [Compiling and flashing firmware](./doc/flashing-guide.md)
+8. [Compiling and flashing firmware](https://github.com/mockthebear/proto-panda/blob/main/doc/flashing-guide.md)
 9. [LED Strips](#led-strips)
 10. [Making your own protopanda](#making)
 11. [Guides](#guides)
@@ -63,7 +62,7 @@ All 3D models are on Thingiverse.
 
 ## FAQ
 
-[Check the FAQ here](./doc/faq.md)
+[Check the FAQ here](https://github.com/mockthebear/proto-panda/blob/main/doc/faq.md)
 
 ## Powering
 
@@ -79,11 +78,11 @@ Since you usually won't be running them at full brightness or with all LEDs set 
 
 The recommended option is to use HUB75 panels. They're driven by [mrcodetastic's HUB75 lib](https://github.com/mrcodetastic/ESP32-HUB75-MatrixPanel-DMA), and these are the [recommended panels](https://s.click.aliexpress.com/e/_c3cirzud).
 
-![HUB75 panels](doc/panels.jpg "HUB75 panels")
+![HUB75 panels](https://github.com/mockthebear/proto-panda/raw/main/doc/panels.jpg "HUB75 panels")
 
 They're multiplexed, which means only a few LEDs are on at a given time. It's fast enough that it can't be seen by the eye, but under direct sunlight it's hard to take a good photo without screen tearing.
 
-![Screen tearing caught on camera](doc/tearing.jpg "Screen tearing caught on camera")
+![Screen tearing caught on camera](https://github.com/mockthebear/proto-panda/raw/main/doc/tearing.jpg "Screen tearing caught on camera")
 
 The resolution is 64 pixels wide and 32 pixels tall. With two panels side by side, the total area is 128x32px. The color depth is 16 bits, in RGB565 format, meaning red (0-32), green (0-64), and blue (0-32).
 
@@ -320,19 +319,19 @@ Animations are processed by Core 0, so you don't have to waste any precious time
 
 During managed mode, frame drawing is handled by Core 0.
 
-![Managed mode](doc/managed.png "Managed mode")
+![Managed mode](https://github.com/mockthebear/proto-panda/raw/main/doc/managed.png "Managed mode")
 
 ## Compiling
 
-Full guide here: [Compiling and flashing firmware](./doc/flashing-guide.md)
+Full guide here: [Compiling and flashing firmware](https://github.com/mockthebear/proto-panda/blob/main/doc/flashing-guide.md)
 
 ## LED Strips
 
 Protopanda supports the WS2812B addressable LED protocol and provides a simple, no-frills system for defining a few behaviors for the strip/matrices.
 
-![LED strip](doc/A7301542.JPG)
+![LED strip](https://github.com/mockthebear/proto-panda/raw/main/doc/A7301542.JPG)
 
-![LED strip diagram](doc/ewm.drawio.png)
+![LED strip diagram](https://github.com/mockthebear/proto-panda/raw/main/doc/ewm.drawio.png)
 
 You can define them inside `hardware.json`:
 ```json
@@ -382,7 +381,7 @@ You can define them inside `hardware.json`:
 ## Making
 
 
-![Electronics schematic](doc/diy-schematic.png "Electronics schematic")
+![Electronics schematic](https://github.com/mockthebear/proto-panda/raw/main/doc/diy-schematic.png "Electronics schematic")
 
 We know not everyone can build a PCB from scratch or buy it from someone. Sometimes the inner maker inside us scream for more projects. Or is just the ADHD.
 
@@ -392,25 +391,25 @@ To feed this insatiable hunger, I made several [guides](#guides). so there's a w
 
 * [3D models of the head](https://www.thingiverse.com/thing:7188042)
 * [3D models of front frame](https://www.thingiverse.com/thing:7188045)
-* [Gerber files](./gerber)
+* [Gerber files](https://github.com/mockthebear/proto-panda/tree/main/gerber)
 
 ## Guides
 
 There are several guides with images and all!
 
-* [Building your own protopanda electronics (DIY)](./doc/diy-guide.md)
-* [Flashing and compiling the firmware](./doc/flashing-guide.md)
-* [Building the remote controller](./doc/controller-guide.md)
-* [Printing and assembling guide of the head](./doc/print-guide.md)
-* [Assembling the front frame with all electronics](./doc/front-frame-guide.md)
-* [Configuring your protogen](./doc/configuring.md)
-* [Lua function reference](doc/lua-doc.md)
+* [Building your own protopanda electronics (DIY)](https://github.com/mockthebear/proto-panda/blob/main/doc/diy-guide.md)
+* [Flashing and compiling the firmware](https://github.com/mockthebear/proto-panda/blob/main/doc/flashing-guide.md)
+* [Building the remote controller](https://github.com/mockthebear/proto-panda/blob/main/doc/controller-guide.md)
+* [Printing and assembling guide of the head](https://github.com/mockthebear/proto-panda/blob/main/doc/print-guide.md)
+* [Assembling the front frame with all electronics](https://github.com/mockthebear/proto-panda/blob/main/doc/front-frame-guide.md)
+* [Configuring your protogen](https://github.com/mockthebear/proto-panda/blob/main/doc/configuring.md)
+* [Lua function reference](lua-doc.md)
 
 
 ## Remote controller
 
 To control it, you can:
-* Use a Protopanda controller built with an [NRF52832/NRF52840 or ESP32Super mini](./doc/controller-guide.md)
+* Use a Protopanda controller built with an [NRF52832/NRF52840 or ESP32Super mini](https://github.com/mockthebear/proto-panda/blob/main/doc/controller-guide.md)
 * Use the [android APP](https://play.google.com/store/apps/details?id=gay.protopanda.controller)
 * Use an IR controller and write a driver for it.
 * Write your own solution using the two extra GPIOs left.
@@ -461,15 +460,15 @@ On the hardware, there's a port for the HUB75 data, an SD card connector, two sc
 
 ### Diagram
 
-![Diagram](doc/noitegrama.png "Diagram")
+![Diagram](https://github.com/mockthebear/proto-panda/raw/main/doc/noitegrama.png "Diagram")
 
 ### Ports
 
-![Ports](doc/ports.png "Ports")
+![Ports](https://github.com/mockthebear/proto-panda/raw/main/doc/ports.png "Ports")
 
 ### Schematic
 
-![Schematic](doc/schematic.png "Schematic")
+![Schematic](https://github.com/mockthebear/proto-panda/raw/main/doc/schematic.png "Schematic")
 
 ### Two Cores
 
@@ -483,7 +482,7 @@ Protopanda uses (and abuses) both cores of the ESP32.
 
 ## Programming in Lua
 
-__[Lua functions reference](doc/lua-doc.md)__
+__[Lua functions reference](lua-doc.md)__
 
 - [Minimum Lua Script](#minimum-lua-script)
 - [Cycle Expressions Each Second](#cycle-expressions-each-second)
