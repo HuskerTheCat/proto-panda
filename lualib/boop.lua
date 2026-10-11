@@ -74,6 +74,9 @@ function _M.Load()
         error("boopAnimationName '"..tostring(config.boopAnimationName).."' must be a non-transition expression")
     end
     _M.boopExpression = boopExp.name
+    -- Keep the boop face out of next/previous cycling. The face menu list
+    -- was already built by expressions.Load, so it still shows there.
+    boopExp.hidden = true
 
     _M.returnExpression = config.returnToExpression or configloader.Get().main_animation
     if _M.returnExpression and not expressions.GetExpression(_M.returnExpression) then
