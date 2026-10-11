@@ -13,3 +13,5 @@ test/
 *.ld
 *.emSession
 AGENTS.md
+
+__pycache__/
